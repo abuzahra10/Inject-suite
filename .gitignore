@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+.env.local
+logs/raw/*
+logs/metrics/*
+!logs/raw/.gitkeep
+!logs/metrics/.gitkeep
+data/corpus/vector_index.*
