@@ -6,6 +6,11 @@ type Recipe = {
   description: string;
 };
 
+type RecipeWithCategory = Recipe & {
+  category: string;
+  cleanDescription: string;
+};
+
 type StatusState =
   | { type: "idle" }
   | { type: "loading"; message: string }
@@ -13,6 +18,20 @@ type StatusState =
   | { type: "success"; message: string };
 
 const initialStatus: StatusState = { type: "idle" };
+
+function extractCategory(description: string): { category: string; cleanDescription: string } {
+  const match = description.match(/^\[(.*?)\]\s*(.*)$/);
+  if (match) {
+    return {
+      category: match[1],
+      cleanDescription: match[2],
+    };
+  }
+  return {
+    category: "Other",
+    cleanDescription: description,
+  };
+}
 
 export default function AttackGenerator() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -37,10 +56,32 @@ export default function AttackGenerator() {
     fetchRecipes();
   }, []);
 
+  const recipesWithCategories = useMemo((): RecipeWithCategory[] => {
+    return recipes.map((recipe) => {
+      const { category, cleanDescription } = extractCategory(recipe.description);
+      return {
+        ...recipe,
+        category,
+        cleanDescription,
+      };
+    });
+  }, [recipes]);
+
+  const groupedRecipes = useMemo(() => {
+    const groups: Record<string, RecipeWithCategory[]> = {};
+    recipesWithCategories.forEach((recipe) => {
+      if (!groups[recipe.category]) {
+        groups[recipe.category] = [];
+      }
+      groups[recipe.category].push(recipe);
+    });
+    return groups;
+  }, [recipesWithCategories]);
+
   const recipeDescription = useMemo(() => {
-    const recipe = recipes.find((entry) => entry.id === selectedRecipe);
-    return recipe?.description ?? "";
-  }, [recipes, selectedRecipe]);
+    const recipe = recipesWithCategories.find((entry) => entry.id === selectedRecipe);
+    return recipe?.cleanDescription ?? "";
+  }, [recipesWithCategories, selectedRecipe]);
 
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploaded = event.target.files?.[0] ?? null;
@@ -68,14 +109,19 @@ export default function AttackGenerator() {
     formData.append("recipe_id", selectedRecipe);
 
     try {
+      console.log("Sending request to /api/attack/pdf with recipe:", selectedRecipe);
       const response = await fetch("/api/attack/pdf", {
         method: "POST",
         body: formData,
       });
 
+      console.log("Response status:", response.status);
+      console.log("Response headers:", Object.fromEntries(response.headers.entries()));
+
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        const message = payload.detail || "Attack generation failed.";
+        const message = payload.detail || `Attack generation failed (Status: ${response.status})`;
+        console.error("API Error:", message);
         setStatus({ type: "error", message });
         return;
       }
@@ -84,6 +130,7 @@ export default function AttackGenerator() {
       const disposition = response.headers.get("Content-Disposition") || "attack.pdf";
       const filename = disposition.split("filename=")[1]?.replace(/"/g, "") ?? "attack.pdf";
 
+      console.log("Downloading file:", filename);
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
@@ -92,7 +139,11 @@ export default function AttackGenerator() {
       window.URL.revokeObjectURL(downloadUrl);
       setStatus({ type: "success", message: `Downloaded ${filename}` });
     } catch (error) {
-      setStatus({ type: "error", message: "Network error while contacting the API." });
+      console.error("Network error:", error);
+      setStatus({ 
+        type: "error", 
+        message: `Network error: ${error instanceof Error ? error.message : 'Unknown error'}. Please check if the backend is running.` 
+      });
     }
   };
 
@@ -110,17 +161,21 @@ export default function AttackGenerator() {
         />
 
         <label htmlFor="recipe-select" className="form-label">
-          Attack Recipe
+          Attack Recipe ({recipesWithCategories.length} available)
         </label>
         <select
           id="recipe-select"
           value={selectedRecipe}
           onChange={(event) => setSelectedRecipe(event.target.value)}
         >
-          {recipes.map((recipe) => (
-            <option key={recipe.id} value={recipe.id}>
-              {recipe.label}
-            </option>
+          {Object.entries(groupedRecipes).map(([category, categoryRecipes]) => (
+            <optgroup key={category} label={category}>
+              {categoryRecipes.map((recipe) => (
+                <option key={recipe.id} value={recipe.id}>
+                  {recipe.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
 

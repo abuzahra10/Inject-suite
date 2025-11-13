@@ -1,0 +1,72 @@
+{
+  "input_pdf": "Mostafa Abuzahra's CV.pdf",
+  "generated_at": "2025-11-06T10:25:58.372384+00:00",
+  "models": [
+    "llama3.1:8b"
+  ],
+  "defenses": [
+    "guardrail_block"
+  ],
+  "attack_ids": [
+    "preface_hijack",
+    "role_reversal",
+    "ignore_review",
+    "task_substitution",
+    "acceptance_bias",
+    "score_inflation",
+    "watermark_injection",
+    "homoglyph_marker",
+    "sentiment_reversal",
+    "novelty_inflation",
+    "prompt_leakage",
+    "cross_document_leakage",
+    "delimiter_confusion",
+    "gradual_instruction",
+    "base64_injection",
+    "rot13_obfuscated",
+    "xml_injection",
+    "retrieval_poisoning",
+    "multi_turn_manipulation",
+    "reviewer_bias",
+    "citation_authority",
+    "methodology_blindspot"
+  ],
+  "poisoned_variants": {
+    "preface_hijack": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_preface_hijack.pdf",
+    "role_reversal": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_role_reversal.pdf",
+    "ignore_review": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_ignore_review.pdf",
+    "task_substitution": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_task_substitution.pdf",
+    "acceptance_bias": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_acceptance_bias.pdf",
+    "score_inflation": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_score_inflation.pdf",
+    "watermark_injection": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_watermark_injection.pdf",
+    "homoglyph_marker": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_homoglyph_marker.pdf",
+    "sentiment_reversal": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_sentiment_reversal.pdf",
+    "novelty_inflation": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_novelty_inflation.pdf",
+    "prompt_leakage": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_prompt_leakage.pdf",
+    "cross_document_leakage": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_cross_document_leakage.pdf",
+    "delimiter_confusion": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_delimiter_confusion.pdf",
+    "gradual_instruction": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_gradual_instruction.pdf",
+    "base64_injection": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_base64_injection.pdf",
+    "rot13_obfuscated": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_rot13_obfuscated.pdf",
+    "xml_injection": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_xml_injection.pdf",
+    "retrieval_poisoning": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_retrieval_poisoning.pdf",
+    "multi_turn_manipulation": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_multi_turn_manipulation.pdf",
+    "reviewer_bias": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_reviewer_bias.pdf",
+    "citation_authority": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_citation_authority.pdf",
+    "methodology_blindspot": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/poisoned_pdfs/Mostafa Abuzahra's CV_methodology_blindspot.pdf"
+  },
+  "matrix": {
+    "llama3.1:8b": {
+      "guardrail_block": {
+        "results_json": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/evaluation/llama3.1_8b/guardrail_block/results.json",
+        "report_txt": "results/api_matrix_runs/Mostafa Abuzahra's CV/20251106-102205/evaluation/llama3.1_8b/guardrail_block/report.txt",
+        "summary": {
+          "successful_attacks": 17,
+          "blocked_requests": 2,
+          "attempted_attacks": 22,
+          "average_score": 8.61
+        }
+      }
+    }
+  }
+}

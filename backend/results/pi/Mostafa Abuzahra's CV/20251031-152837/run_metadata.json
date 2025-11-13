@@ -1,0 +1,42 @@
+{
+  "input_pdf": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/Mostafa Abuzahra's CV.pdf",
+  "models": [
+    "llama3.1:8b",
+    "mistral:7b-instruct"
+  ],
+  "generated_at": "2025-10-31T15:35:44.035349Z",
+  "poisoned_variants": {
+    "preface_hijack": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_preface_hijack.pdf",
+    "role_reversal": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_role_reversal.pdf",
+    "ignore_review": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_ignore_review.pdf",
+    "task_substitution": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_task_substitution.pdf",
+    "acceptance_bias": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_acceptance_bias.pdf",
+    "score_inflation": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_score_inflation.pdf",
+    "watermark_injection": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_watermark_injection.pdf",
+    "homoglyph_marker": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_homoglyph_marker.pdf",
+    "sentiment_reversal": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_sentiment_reversal.pdf",
+    "novelty_inflation": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_novelty_inflation.pdf",
+    "prompt_leakage": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_prompt_leakage.pdf",
+    "cross_document_leakage": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_cross_document_leakage.pdf",
+    "delimiter_confusion": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_delimiter_confusion.pdf",
+    "gradual_instruction": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_gradual_instruction.pdf",
+    "base64_injection": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_base64_injection.pdf",
+    "rot13_obfuscated": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_rot13_obfuscated.pdf",
+    "xml_injection": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_xml_injection.pdf",
+    "retrieval_poisoning": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_retrieval_poisoning.pdf",
+    "multi_turn_manipulation": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_multi_turn_manipulation.pdf",
+    "reviewer_bias": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_reviewer_bias.pdf",
+    "citation_authority": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_citation_authority.pdf",
+    "methodology_blindspot": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/poisoned_pdfs/Mostafa Abuzahra's CV_methodology_blindspot.pdf"
+  },
+  "evaluations": {
+    "llama3.1:8b": {
+      "results_json": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/evaluation/llama3.1_8b/results.json",
+      "report_txt": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/evaluation/llama3.1_8b/report.txt"
+    },
+    "mistral:7b-instruct": {
+      "results_json": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/evaluation/mistral_7b-instruct/results.json",
+      "report_txt": "/home/abuzahra/Thesis Implementation/thesis-pi-eval/backend/results/pi/Mostafa Abuzahra's CV/20251031-152837/evaluation/mistral_7b-instruct/report.txt"
+    }
+  }
+}

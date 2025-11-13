@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from io import BytesIO
+from pathlib import Path
 from typing import Tuple
 
 from fpdf import FPDF
@@ -50,6 +51,21 @@ def load_pdf_document(data: bytes, filename: str) -> PdfDocument:
     return PdfDocument(name=stem, text=text.strip(), page_count=page_count)
 
 
+def _set_pdf_font(pdf: FPDF) -> None:
+    """Set a Unicode-compatible font for the PDF."""
+    candidates = [
+        ("DejaVu", Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")),
+        ("FreeSans", Path("/usr/share/fonts/truetype/freefont/FreeSans.ttf")),
+    ]
+    for family, path in candidates:
+        if path.exists():
+            pdf.add_font(family, "", str(path), uni=True)
+            pdf.set_font(family, size=1.2)
+            return
+    # Fallback to Helvetica if no Unicode fonts are available
+    pdf.set_font("Helvetica", size=1.2)
+
+
 def _create_hidden_overlay(
     instructions: str,
     width: float,
@@ -65,10 +81,9 @@ def _create_hidden_overlay(
         pdf.set_draw_color(255, 255, 255)
     except AttributeError:
         pass
-    try:
-        pdf.set_font("Helvetica", size=1.2)
-    except RuntimeError:
-        pdf.set_font("Arial", size=1.2)
+    
+    # Use Unicode-compatible font
+    _set_pdf_font(pdf)
 
     margin = 18
     lines = [line for line in instructions.splitlines() if line.strip()]

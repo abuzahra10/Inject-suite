@@ -36,7 +36,7 @@ def run_pipeline(
     prompt = _build_prompt(query, contexts)
 
     base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-    model_name = os.getenv("OLLAMA_MODEL", "llama3.2:3b-instruct")
+    model_name = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 
     client = Client(host=base_url)
     options = {"temperature": temperature} if temperature is not None else None

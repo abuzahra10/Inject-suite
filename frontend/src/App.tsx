@@ -1,23 +1,34 @@
 import { useState } from "react";
-import AttackGenerator from "./components/AttackGenerator";
+import AttackWorkspace from "./components/AttackWorkspace";
 import DefensePlaceholder from "./components/DefensePlaceholder";
+import MatrixConsole from "./components/MatrixConsole";
+import AnalysisConsole from "./components/AnalysisConsole";
 
-type TabKey = "attack" | "defense";
+type TabKey = "workspace" | "defense" | "matrix" | "analysis";
 
 const TAB_LABELS: Record<TabKey, string> = {
-  attack: "Attack Generator",
-  defense: "Defense (Coming Soon)",
+  workspace: "Attack & Evaluation",
+  defense: "Defense Testing",
+  matrix: "Automation Lab",
+  analysis: "Statistical Analysis",
+};
+
+const TAB_ICONS: Record<TabKey, string> = {
+  workspace: "⚔️",
+  defense: "🛡️",
+  matrix: "🗂️",
+  analysis: "📊",
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<TabKey>("attack");
+  const [activeTab, setActiveTab] = useState<TabKey>("workspace");
 
   return (
     <div className="app-shell">
       <header>
         <h1>Indirect Prompt Injection Workbench</h1>
         <p className="subtitle">
-          Upload a PDF, inject a hidden attack payload, and download the malicious document.
+          Craft indirect prompt injections, chat with local models, evaluate attacks, and explore defenses.
         </p>
       </header>
 
@@ -30,13 +41,22 @@ export default function App() {
             className={activeTab === tab ? "tab active" : "tab"}
             onClick={() => setActiveTab(tab)}
           >
-            {TAB_LABELS[tab]}
+            <span className="tab-icon">{TAB_ICONS[tab]}</span>
+            <span className="tab-text">{TAB_LABELS[tab]}</span>
           </button>
         ))}
       </nav>
 
       <main>
-        {activeTab === "attack" ? <AttackGenerator /> : <DefensePlaceholder />}
+        {activeTab === "workspace" ? (
+          <AttackWorkspace />
+        ) : activeTab === "defense" ? (
+          <DefensePlaceholder />
+        ) : activeTab === "matrix" ? (
+          <MatrixConsole />
+        ) : (
+          <AnalysisConsole />
+        )}
       </main>
 
       <footer>
