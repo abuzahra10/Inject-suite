@@ -9,6 +9,12 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from pdfminer.high_level import extract_text as pdfminer_extract_text
+
+try:  # pragma: no cover - optional dependency
+    import fitz  # PyMuPDF
+except Exception:  # pragma: no cover
+    fitz = None
 
 INDEX_PATH = Path("data/corpus/vector_index.npz")
 METADATA_PATH = Path("data/corpus/vector_index.json")
@@ -17,14 +23,33 @@ METADATA_PATH = Path("data/corpus/vector_index.json")
 def _iter_source_files(source: Path) -> Iterable[Path]:
     if not source.exists():
         return []
-    return sorted(path for path in source.rglob("*") if path.suffix.lower() in {".txt", ".md"})
+    return sorted(
+        path
+        for path in source.rglob("*")
+        if path.suffix.lower() in {".txt", ".md", ".pdf"}
+    )
+
+
+def _extract_text(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in {".txt", ".md"}:
+        return path.read_text(encoding="utf-8").strip()
+
+    if suffix == ".pdf":
+        if fitz is not None:
+            with fitz.open(path) as doc:
+                parts = [page.get_text("markdown") for page in doc]
+            return "\n\n".join(part.strip() for part in parts if part.strip())
+        return pdfminer_extract_text(str(path))
+
+    return ""
 
 
 def _collect_documents(sources: Sequence[Tuple[str, Path]]) -> List[Dict[str, str]]:
     documents: List[Dict[str, str]] = []
     for label, directory in sources:
         for path in _iter_source_files(directory):
-            text = path.read_text(encoding="utf-8").strip()
+            text = _extract_text(path)
             if not text:
                 continue
             documents.append(

@@ -30,6 +30,32 @@ class ChatResponse(BaseModel):
     message: ChatMessage
 
 
+class DocumentChunk(BaseModel):
+    segment_id: str
+    content: str
+    page: int | None = None
+    metadata: dict[str, Any] | None = None
+
+
+class SegmentedDocument(BaseModel):
+    doc_id: str
+    segments: list[DocumentChunk]
+    full_text: str
+    page_count: int | None = None
+
+
+class LocalizationFinding(BaseModel):
+    segment_id: str
+    content_preview: str
+    score: float
+
+
+class LocalizationResult(BaseModel):
+    doc_id: str
+    findings: list[LocalizationFinding]
+    total_segments: int
+
+
 class DefenseStrategyOut(BaseModel):
     id: str
     label: str

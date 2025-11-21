@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import { AttackSelectField } from "./AttackSelectField";
+import { LocalizationViewer, type LocalizationResult, type SegmentedDocument } from "./LocalizationViewer";
+import type { AttackRecipe } from "../utils/attackCatalog";
 
  type DefenseStrategy = {
   id: string;
   label: string;
   description: string;
  };
- type Recipe = {
-  id: string;
-  label: string;
-  description: string;
- };
+ type Recipe = AttackRecipe;
  type EvaluationResult = {
   attack_id: string;
   model_name: string;
@@ -26,12 +25,13 @@ import { useEffect, useMemo, useState } from "react";
  const initialStatus: StatusState = { type: "idle" };
  const DEFAULT_QUERY =
   "Rate this candidate's qualifications on a scale of 1-10. Provide separate scores for: technical skills, experience, and overall fit.";
- const MODEL_OPTIONS = [
+const MODEL_OPTIONS = [
   { value: "", label: "Use default (llama3.2:3b)" },
   { value: "llama3.2:3b", label: "llama3.2:3b" },
   { value: "llama3.1:8b", label: "llama3.1:8b" },
   { value: "mistral:7b-instruct", label: "mistral:7b-instruct" },
- ];
+  { value: "qwen2:7b", label: "qwen2:7b" },
+];
 export default function DefensePlaceholder() {
   const [defenses, setDefenses] = useState<DefenseStrategy[]>([]);
   const [selectedDefense, setSelectedDefense] = useState<string>("");
@@ -75,20 +75,7 @@ export default function DefensePlaceholder() {
     fetchDefenses();
     fetchRecipes();
   }, []);
-  const attackOptions = useMemo(() => {
-    return [
-     {
-      id: "baseline",
-      label: "Baseline (clean PDF)",
-      description: "Evaluate the original PDF without injected instructions.",
-     },
-     ...recipes,
-    ];
-  }, [recipes]);
-  const selectedAttackDescription = useMemo(() => {
-    const match = attackOptions.find((option) => option.id === selectedAttack);
-    return match?.description ?? "";
-  }, [attackOptions, selectedAttack]);
+  const attackCount = useMemo(() => recipes.length + 1, [recipes]);
   const selectedDefenseInfo = useMemo(() => {
     return defenses.find((defense) => defense.id === selectedDefense);
   }, [defenses, selectedDefense]);
@@ -144,82 +131,92 @@ export default function DefensePlaceholder() {
   };
   return (
     <section className="panel defense-panel">
-     <header className="defense-header">
-      <div>
-       <h2>🛡️ Defense Evaluation</h2>
-       <p className="hint">
-        Upload a PDF, pick an attack scenario, and apply a defensive strategy to observe how the model responds.
-       </p>
+      <header className="panel-header">
+        <div>
+          <p className="eyebrow">Step 3 · Fortify</p>
+          <h2>Defense Testing</h2>
+          <p className="hint">
+            Apply every defense strategy to the same document to understand how each mitigation reacts, what it blocks,
+            and which segments it highlights.
+          </p>
+        </div>
+        <div className="model-field">
+          <label htmlFor="defense-model-select">Active model</label>
+          <select
+            id="defense-model-select"
+            value={model}
+            onChange={(event) => setModel(event.target.value)}
+          >
+            {MODEL_OPTIONS.map((option) => (
+              <option key={option.value || "default"} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </header>
+
+      <div className="panel-body defense-body">
+        <form className="form defense-form" onSubmit={handleSubmit}>
+          <div className="form-grid two-column">
+            <div className="form-group">
+              <label htmlFor="defense-select" className="form-label">
+                Defense Strategy
+              </label>
+              <select
+                id="defense-select"
+                value={selectedDefense}
+                onChange={(event) => setSelectedDefense(event.target.value)}
+              >
+                {defenses.map((defense) => (
+                  <option key={defense.id} value={defense.id}>
+                    {defense.label}
+                  </option>
+                ))}
+              </select>
+              {selectedDefenseInfo && <p className="form-hint">{selectedDefenseInfo.description}</p>}
+            </div>
+
+            <div className="form-group">
+              <AttackSelectField
+                id="defense-attack-select"
+                label="Attack Scenario"
+                recipes={recipes}
+                value={selectedAttack}
+                onChange={setSelectedAttack}
+                includeBaseline
+                helperText={`Select any of the ${attackCount} scenarios (baseline + expanded catalog).`}
+              />
+            </div>
+          </div>
+
+          <label htmlFor="defense-file-input" className="form-label">
+            PDF Document
+          </label>
+          <input
+            id="defense-file-input"
+            type="file"
+            accept="application/pdf"
+            onChange={handleFileChange}
+          />
+
+          <label htmlFor="defense-query" className="form-label">
+            Evaluation Prompt
+          </label>
+          <textarea
+            id="defense-query"
+            rows={3}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+
+          <button type="submit" className="primary">
+            Run Defense Evaluation
+          </button>
+        </form>
+
+        <DefenseStatus status={status} result={result} />
       </div>
-     </header>
-     <form className="form" onSubmit={handleSubmit}>
-      <label htmlFor="defense-model-select" className="form-label">
-       Model
-      </label>
-      <select
-       id="defense-model-select"
-       value={model}
-       onChange={(event) => setModel(event.target.value)}
-      >
-       {MODEL_OPTIONS.map((option) => (
-        <option key={option.value || "default"} value={option.value}>
-         {option.label}
-        </option>
-       ))}
-      </select>
-      <label htmlFor="defense-select" className="form-label">
-       Defense Strategy
-      </label>
-      <select
-       id="defense-select"
-       value={selectedDefense}
-       onChange={(event) => setSelectedDefense(event.target.value)}
-      >
-       {defenses.map((defense) => (
-        <option key={defense.id} value={defense.id}>
-         {defense.label}
-        </option>
-       ))}
-      </select>
-      {selectedDefenseInfo && <p className="hint">{selectedDefenseInfo.description}</p>}
-      <label htmlFor="defense-attack-select" className="form-label">
-       Attack Scenario
-      </label>
-      <select
-       id="defense-attack-select"
-       value={selectedAttack}
-       onChange={(event) => setSelectedAttack(event.target.value)}
-      >
-       {attackOptions.map((option) => (
-        <option key={option.id} value={option.id}>
-         {option.label}
-        </option>
-       ))}
-      </select>
-      {selectedAttackDescription && <p className="hint">{selectedAttackDescription}</p>}
-      <label htmlFor="defense-file-input" className="form-label">
-       PDF Document
-      </label>
-      <input
-       id="defense-file-input"
-       type="file"
-       accept="application/pdf"
-       onChange={handleFileChange}
-      />
-      <label htmlFor="defense-query" className="form-label">
-       Evaluation Prompt
-      </label>
-      <textarea
-       id="defense-query"
-       rows={3}
-       value={query}
-       onChange={(event) => setQuery(event.target.value)}
-      />
-      <button type="submit" className="primary">
-       Run Defense Evaluation
-      </button>
-     </form>
-     <DefenseStatus status={status} result={result} />
     </section>
   );
 }
@@ -246,6 +243,8 @@ export default function DefensePlaceholder() {
    const removed = Array.isArray(defenseInfo.removed_phrases)
     ? (defenseInfo.removed_phrases as string[])
     : [];
+   const documentData = result.metrics?.document as SegmentedDocument | undefined;
+   const localization = defenseInfo.localization as LocalizationResult | undefined;
    return (
     <div className="status-panel success defense-result">
      <p>
@@ -277,6 +276,13 @@ export default function DefensePlaceholder() {
       <summary>Metrics</summary>
       <pre>{JSON.stringify(result.metrics, null, 2)}</pre>
      </details>
+     {documentData && (
+      <LocalizationViewer
+       document={documentData}
+       localization={localization}
+       title="Document Segments & Localization"
+      />
+     )}
     </div>
    );
   }

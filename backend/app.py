@@ -5,6 +5,7 @@ import os
 from io import BytesIO
 from pathlib import Path
 
+import logging
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -37,6 +38,8 @@ from services.matrix_runner import (
     DEFAULT_QUERY as MATRIX_DEFAULT_QUERY,
     execute_matrix_batch,
 )
+
+logger = logging.getLogger("pi-app")
 
 app = FastAPI(title="Prompt Injection Generator API", version="0.1.0")
 
@@ -316,6 +319,7 @@ async def defense_matrix(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # pragma: no cover - safety net
+        logger.exception("Matrix run failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     runs_out = []

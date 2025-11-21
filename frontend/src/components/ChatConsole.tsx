@@ -1,14 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { AttackSelectField } from "./AttackSelectField";
+import { LocalizationViewer, type LocalizationResult, type SegmentedDocument } from "./LocalizationViewer";
+import type { AttackRecipe } from "../utils/attackCatalog";
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
-};
-
-type Recipe = {
-  id: string;
-  label: string;
-  description: string;
 };
 
 type EvaluationResult = {
@@ -39,7 +36,7 @@ export default function ChatConsole() {
   const [isSending, setIsSending] = useState(false);
   const messageListRef = useRef<HTMLDivElement>(null);
 
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<AttackRecipe[]>([]);
   const [selectedAttack, setSelectedAttack] = useState<string>("baseline");
   const [evaluationFile, setEvaluationFile] = useState<File | null>(null);
   const [evaluationQuery, setEvaluationQuery] = useState(DEFAULT_QUERY);
@@ -68,22 +65,6 @@ export default function ChatConsole() {
       messageListRef.current.scrollTop = messageListRef.current.scrollHeight;
     }
   }, [messages]);
-
-  const attackOptions = useMemo(() => {
-    return [
-      {
-        id: "baseline",
-        label: "Baseline (clean PDF)",
-        description: "Evaluate the original PDF without injected instructions.",
-      },
-      ...recipes,
-    ];
-  }, [recipes]);
-
-  const selectedDescription = useMemo(() => {
-    const match = attackOptions.find((option) => option.id === selectedAttack);
-    return match?.description ?? "";
-  }, [attackOptions, selectedAttack]);
 
   const handleSendMessage = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -194,16 +175,17 @@ export default function ChatConsole() {
 
   return (
     <section className="panel chat-panel">
-      <div className="chat-header">
+      <header className="panel-header">
         <div>
-          <h2>Ollama Chat</h2>
+          <p className="eyebrow">Step 2 · Probe & score</p>
+          <h2>Interactive Chat & Evaluation</h2>
           <p className="hint">
-            Talk to the local Ollama model. Choose a model below or leave it empty to use the default
-            configuration ({model || "llama3.2:3b"}).
+            Test how the selected model reacts before and after you inject instructions. Keep the chat log open while
+            you run structured evaluations to capture both qualitative and quantitative signals.
           </p>
         </div>
         <div className="model-field">
-          <label htmlFor="model-select">Model</label>
+          <label htmlFor="model-select">Active model</label>
           <select
             id="model-select"
             value={model}
@@ -213,100 +195,105 @@ export default function ChatConsole() {
             <option value="llama3.2:3b">llama3.2:3b</option>
             <option value="llama3.1:8b">llama3.1:8b</option>
             <option value="mistral:7b-instruct">mistral:7b-instruct</option>
+            <option value="qwen2:7b">qwen2:7b</option>
           </select>
         </div>
-      </div>
+      </header>
 
-      <div className="chat-body">
-        <div className="chat-messages" ref={messageListRef}>
-          {messages.length === 0 ? (
-            <div className="chat-placeholder">
-              <p>Start the conversation to probe model behaviour.</p>
+      <div className="panel-body chat-layout">
+        <div className="chat-column conversation">
+          <div className="section-heading">
+            <h3>Conversation</h3>
+            <p className="hint">Use natural language to sanity-check instructions before launching evaluations.</p>
+          </div>
+
+          <div className="chat-body">
+            <div className="chat-messages" ref={messageListRef}>
+              {messages.length === 0 ? (
+                <div className="chat-placeholder">
+                  <p>Start the conversation to probe model behaviour.</p>
+                </div>
+              ) : (
+                messages.map((message, index) => (
+                  <div key={index} className={`chat-message ${message.role}`}>
+                    <span className="chat-role">{message.role === "user" ? "You" : "Model"}</span>
+                    <p>{message.content}</p>
+                  </div>
+                ))
+              )}
             </div>
-          ) : (
-            messages.map((message, index) => (
-              <div key={index} className={`chat-message ${message.role}`}>
-                <span className="chat-role">{message.role === "user" ? "You" : "Model"}</span>
-                <p>{message.content}</p>
-              </div>
-            ))
-          )}
+
+            {chatError && <div className="status-panel error">{chatError}</div>}
+
+            <form className="chat-input" onSubmit={handleSendMessage}>
+              <input
+                type="text"
+                placeholder="Ask something..."
+                value={input}
+                onChange={(event) => setInput(event.target.value)}
+                disabled={isSending}
+              />
+              <button type="submit" className="primary" disabled={isSending}>
+                {isSending ? "Sending..." : "Send"}
+              </button>
+            </form>
+          </div>
         </div>
 
-        {chatError && <div className="status-panel error">{chatError}</div>}
+        <div className="chat-column evaluation">
+          <div className="section-heading">
+            <h3>Attack evaluation</h3>
+            <p className="hint">
+              Run the standardized scoring pipeline. Upload a baseline or poisoned PDF, pick a scenario, then capture
+              ASV/PNA and localization output for reporting.
+            </p>
+          </div>
 
-        <form className="chat-input" onSubmit={handleSendMessage}>
-          <input
-            type="text"
-            placeholder="Ask something..."
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            disabled={isSending}
-          />
-          <button type="submit" className="primary" disabled={isSending}>
-            {isSending ? "Sending..." : "Send"}
-          </button>
-        </form>
-      </div>
+          <form className="form evaluation-form" onSubmit={handleEvaluationSubmit}>
+            <label htmlFor="evaluation-file" className="form-label">
+              Candidate PDF
+            </label>
+            <input
+              id="evaluation-file"
+              type="file"
+              accept="application/pdf"
+              onChange={(event) => {
+                setEvaluationFile(event.target.files?.[0] ?? null);
+                setEvaluationStatus({ type: "idle" });
+                setEvaluationResult(null);
+              }}
+            />
 
-      <div className="evaluation-section">
-        <h3>Attack Evaluation</h3>
-        <p className="hint">
-          Trigger the same evaluation pipeline used locally. Upload a PDF and optionally choose an
-          attack recipe to benchmark against the active model.
-        </p>
+            <AttackSelectField
+              id="attack-select"
+              label="Attack Scenario"
+              recipes={recipes}
+              value={selectedAttack}
+              onChange={(next) => {
+                setSelectedAttack(next);
+                setEvaluationStatus(initialStatus);
+              }}
+              includeBaseline
+              helperText="Switch between baseline and any attack to see delta metrics."
+            />
 
-        <form className="form evaluation-form" onSubmit={handleEvaluationSubmit}>
-          <label htmlFor="evaluation-file" className="form-label">
-            Candidate PDF
-          </label>
-          <input
-            id="evaluation-file"
-            type="file"
-            accept="application/pdf"
-          onChange={(event) => {
-            setEvaluationFile(event.target.files?.[0] ?? null);
-            setEvaluationStatus({ type: "idle" });
-            setEvaluationResult(null);
-          }}
-          />
+            <label htmlFor="evaluation-query" className="form-label">
+              Evaluation Prompt
+            </label>
+            <textarea
+              id="evaluation-query"
+              value={evaluationQuery}
+              onChange={(event) => setEvaluationQuery(event.target.value)}
+              rows={3}
+            />
 
-          <label htmlFor="attack-select" className="form-label">
-            Attack Scenario
-          </label>
-          <select
-            id="attack-select"
-          value={selectedAttack}
-          onChange={(event) => {
-            setSelectedAttack(event.target.value);
-            setEvaluationStatus({ type: "idle" });
-          }}
-          >
-            {attackOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <button type="submit" className="primary">
+              Run Evaluation
+            </button>
+          </form>
 
-          {selectedDescription && <p className="hint">{selectedDescription}</p>}
-
-          <label htmlFor="evaluation-query" className="form-label">
-            Evaluation Prompt
-          </label>
-          <textarea
-            id="evaluation-query"
-            value={evaluationQuery}
-            onChange={(event) => setEvaluationQuery(event.target.value)}
-            rows={3}
-          />
-
-          <button type="submit" className="primary">
-            Run Evaluation
-          </button>
-        </form>
-
-        <EvaluationStatus status={evaluationStatus} result={evaluationResult} />
+          <EvaluationStatus status={evaluationStatus} result={evaluationResult} />
+        </div>
       </div>
     </section>
   );
@@ -335,6 +322,12 @@ function EvaluationStatus({ status, result }: EvaluationStatusProps) {
   }
 
   if (status.type === "success" && result) {
+    const documentData = result.metrics?.document as SegmentedDocument | undefined;
+    const defenseInfo = (result.metrics?.defense ?? {}) as Record<string, unknown>;
+    const localization =
+      (defenseInfo.localization as LocalizationResult | undefined) ||
+      (result.metrics?.localization as LocalizationResult | undefined);
+
     return (
       <div className="status-panel success evaluation-result">
         <p>
@@ -355,6 +348,13 @@ function EvaluationStatus({ status, result }: EvaluationStatusProps) {
           <summary>Model Response</summary>
           <pre>{result.response}</pre>
         </details>
+        {documentData && (
+          <LocalizationViewer
+            document={documentData}
+            localization={localization}
+            title="Document Segments & Localization"
+          />
+        )}
       </div>
     );
   }

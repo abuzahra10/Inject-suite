@@ -5,3 +5,4 @@ python-multipart==0.0.9
 pdfminer.six==20250506
 pypdf==5.1.0
 fpdf2==2.8.4
+pymupdf==1.24.3

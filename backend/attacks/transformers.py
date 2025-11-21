@@ -12,7 +12,16 @@ from pdfminer.high_level import extract_text as pdfminer_extract_text
 from pypdf import PdfReader, PdfWriter
 from pypdf.errors import PdfReadError
 
+from models.schemas import SegmentedDocument
+from segmentation import RecursiveCharacterChunker
+
 from .injectors import AttackRecipe
+
+CHUNKER = RecursiveCharacterChunker()
+try:
+    import fitz
+except Exception:  # pragma: no cover - optional dependency fallback
+    fitz = None
 
 
 @dataclass
@@ -22,6 +31,7 @@ class PdfDocument:
     name: str
     text: str
     page_count: int
+    segmented: SegmentedDocument
 
 
 def load_pdf_document(data: bytes, filename: str) -> PdfDocument:
@@ -32,14 +42,24 @@ def load_pdf_document(data: bytes, filename: str) -> PdfDocument:
 
     text = ""
     page_count = 0
-    try:
-        reader = PdfReader(buffer)
-        page_count = len(reader.pages)
-        if reader.is_encrypted:
-            reader.decrypt("")
-        text = "\n".join(page.extract_text() or "" for page in reader.pages)
-    except PdfReadError:
-        text = ""
+    if fitz is not None:
+        try:
+            with fitz.open(stream=data, filetype="pdf") as doc:
+                page_count = doc.page_count
+                parts = [page.get_text("markdown") for page in doc]
+            text = "\n\n".join(part.strip() for part in parts if part.strip())
+        except Exception:
+            text = ""
+
+    if not text.strip():
+        try:
+            reader = PdfReader(buffer)
+            page_count = len(reader.pages)
+            if reader.is_encrypted:
+                reader.decrypt("")
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        except PdfReadError:
+            text = ""
 
     if not text.strip():
         buffer.seek(0)
@@ -48,7 +68,15 @@ def load_pdf_document(data: bytes, filename: str) -> PdfDocument:
     if not text.strip():
         raise ValueError("The supplied PDF contains no extractable text.")
 
-    return PdfDocument(name=stem, text=text.strip(), page_count=page_count)
+    cleaned = text.strip()
+    segmented = CHUNKER.chunk(cleaned, document_name=stem, page_count=page_count or None)
+
+    return PdfDocument(
+        name=stem,
+        text=cleaned,
+        page_count=page_count,
+        segmented=segmented,
+    )
 
 
 def _set_pdf_font(pdf: FPDF) -> None:
@@ -100,7 +128,8 @@ def _create_hidden_overlay(
     x = margin if position != "margin" else width - margin * 4
 
     for line in lines:
-        pdf.text(x=x, y=y, txt=line)
+        safe_line = line.encode("latin-1", "ignore").decode("latin-1")
+        pdf.text(x=x, y=y, txt=safe_line)
         y += 1.5
 
     return bytes(pdf.output(dest="S"))
@@ -119,7 +148,7 @@ def generate_malicious_pdf(
     width = float(first_page.mediabox.width)
     height = float(first_page.mediabox.height)
 
-    hidden_payload = recipe.injector.craft(document.text)
+    hidden_payload = recipe.injector.craft(document.segmented)
     overlay_bytes = _create_hidden_overlay(hidden_payload, width, height, recipe.position)
 
     overlay_reader = PdfReader(BytesIO(overlay_bytes))

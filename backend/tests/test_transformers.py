@@ -26,6 +26,8 @@ def test_load_pdf_document_extracts_text():
     doc = load_pdf_document(content, "sample.pdf")
     assert "Sample content" in doc.text
     assert doc.name == "sample"
+    assert doc.segmented.segments, "Expected segmentation to produce chunks"
+    assert doc.segmented.segments[0].content.startswith("Sample")
 
 
 def test_generate_malicious_pdf_injects_overlay():
@@ -43,9 +45,14 @@ def test_load_pdf_document_fallback(monkeypatch):
 
     import attacks.transformers as transformers
 
+    def raise_fitz_error(*_args, **_kwargs):
+        raise RuntimeError("fitz boom")
+
     def raise_pdf_error(*_args, **_kwargs):
         raise PdfReadError("boom")
 
+    if transformers.fitz is not None:
+        monkeypatch.setattr(transformers.fitz, "open", raise_fitz_error)
     monkeypatch.setattr(transformers, "PdfReader", raise_pdf_error)
     monkeypatch.setattr(transformers, "pdfminer_extract_text", lambda buffer: "Fallback text")
 

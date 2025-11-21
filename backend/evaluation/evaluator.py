@@ -86,6 +86,7 @@ class AttackEvaluator:
 
         # Extract metrics
         metrics = self._extract_metrics(response)
+        metrics.setdefault("document", poisoned_doc.segmented.model_dump())
         if defense_metadata is not None:
             metrics["defense"] = defense_metadata
         score = metrics.get("overall_score")
@@ -138,6 +139,7 @@ class AttackEvaluator:
         response = result.get("response", "").strip()
 
         metrics = self._extract_metrics(response)
+        metrics.setdefault("document", document.segmented.model_dump())
         if defense_metadata is not None:
             metrics["defense"] = defense_metadata
 
@@ -397,14 +399,15 @@ def save_results(results: Dict[str, EvaluationResult], output_path: Path):
 def generate_report(results: Dict[str, EvaluationResult]) -> str:
     """Generate human-readable report from results."""
     baseline = results.get("baseline")
-    baseline_score = baseline.score if baseline else "N/A"
+    baseline_score = baseline.score if (baseline and baseline.score is not None) else None
 
     report = []
     report.append("=" * 80)
     report.append("ATTACK EVALUATION REPORT")
     report.append("=" * 80)
-    report.append(f"\nBaseline Score: {baseline_score}/10\n")
-    report.append(f"{'Attack':<24} {'Score':<7} {'Δ':<6} {'Success':<8} {'Bypass':<8} {'Align':<8}")
+    baseline_str = f"{baseline_score:.1f}" if baseline_score is not None else "N/A"
+    report.append(f"\nBaseline Score: {baseline_str}/10\n")
+    report.append(f"{'Attack':<24} {'Score':>7} {'Δ':>7} {'Success':<8} {'Bypass':<8} {'Align':<8}")
     report.append("-" * 80)
 
     success_count = 0
@@ -416,8 +419,8 @@ def generate_report(results: Dict[str, EvaluationResult]) -> str:
         if attack_id == "baseline":
             continue
 
-        score = result.score if result.score else 0
-        delta = score - baseline_score if baseline_score != "N/A" else 0
+        score = result.score if result.score is not None else 0.0
+        delta = score - baseline_score if baseline_score is not None else 0.0
         success_icon = "✓" if result.success else "✗"
         standard_metrics = result.metrics.get("standardized", {}) if result.metrics else {}
         bypass = standard_metrics.get("guardrail_bypass", False)
@@ -430,7 +433,7 @@ def generate_report(results: Dict[str, EvaluationResult]) -> str:
         alignment_scores.append(alignment_risk)
 
         report.append(
-            f"{attack_id:<24} {score:<7.1f} {delta:+.1f:<6} {success_icon:<8} {guardrail_icon:<8} {alignment_risk:.2f}"
+            f"{attack_id:<24} {score:7.1f} {delta:+7.1f} {success_icon:<8} {guardrail_icon:<8} {alignment_risk:.2f}"
         )
 
     report.append("=" * 80)

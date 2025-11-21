@@ -705,106 +705,109 @@ export default function AnalysisConsole() {
   };
 
   return (
-    <div className="analysis-console">
-      <div className="console-header">
-        <h2>📊 Statistical Analysis & Benchmarking</h2>
-        <p>
-          Comprehensive statistical analysis with significance testing, effect sizes, and
-          comparative evaluation across models, defenses, and attack categories.
-        </p>
-      </div>
-
-      <div className="analysis-controls">
-        <div className="control-group">
-          <label htmlFor="run-select">Select Matrix Run:</label>
-          <select
-            id="run-select"
-            value={selectedRun}
-            onChange={(e) => setSelectedRun(e.target.value)}
-            disabled={loading}
-          >
-            <option value="">-- Select a run --</option>
-            {availableRuns.map((run) => (
-              <option key={run.run_dir} value={run.run_dir}>
-                {run.run_name} (
-                {run.metadata.models?.join(", ") || "N/A"} ×{" "}
-                {run.metadata.defenses?.join(", ") || "N/A"})
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="button-group">
-          <button
-            onClick={runStatisticalAnalysis}
-            disabled={!selectedRun || loading}
-            className="btn-primary"
-          >
-            {loading ? "⏳ Analyzing..." : "📊 Statistical Analysis"}
-          </button>
-
-          <button
-            onClick={runComparativeAnalysis}
-            disabled={!selectedRun || loading}
-            className="btn-primary"
-          >
-            {loading ? "⏳ Analyzing..." : "📈 Comparative Analysis"}
-          </button>
-
-          <button
-            onClick={runBothAnalyses}
-            disabled={!selectedRun || loading}
-            className="btn-success"
-          >
-            {loading ? "⏳ Analyzing..." : "🚀 Run Full Analysis"}
-          </button>
-
-          <button onClick={fetchAvailableRuns} disabled={loading} className="btn-secondary">
-            🔄 Refresh Runs
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="error-message">
-          <strong>❌ Error:</strong> {error}
-        </div>
-      )}
-
-      {(statisticalData || comparativeData) && (
-        <div className="view-toggle">
-          <button
-            className={activeView === "statistical" ? "active" : ""}
-            onClick={() => setActiveView("statistical")}
-            disabled={!statisticalData}
-          >
-            📊 Statistical
-          </button>
-          <button
-            className={activeView === "comparative" ? "active" : ""}
-            onClick={() => setActiveView("comparative")}
-            disabled={!comparativeData}
-          >
-            📈 Comparative
-          </button>
-        </div>
-      )}
-
-      {activeView === "statistical" && renderStatisticalView()}
-      {activeView === "comparative" && renderComparativeView()}
-
-      {!statisticalData && !comparativeData && !loading && (
-        <div className="empty-state">
-          <p>
-            👆 Select a matrix run above and click an analysis button to view comprehensive
-            statistical and comparative results.
-          </p>
-          <p>
-            The analysis includes success rates, confidence intervals, p-values, Cohen's d
-            effect sizes, and cross-model/defense comparisons.
+    <section className="panel analysis-panel">
+      <header className="panel-header">
+        <div>
+          <p className="eyebrow">Phase 5 · Interpret</p>
+          <h2>Analysis & Reporting</h2>
+          <p className="hint">
+            Run statistical and comparative analysis on any stored matrix run. Export the generated report text directly
+            into your thesis.
           </p>
         </div>
-      )}
-    </div>
+      </header>
+
+      <div className="panel-body analysis-body">
+        <div className="analysis-controls">
+          <div className="control-group">
+            <label htmlFor="run-select">Select matrix run</label>
+            <select
+              id="run-select"
+              value={selectedRun}
+              onChange={(e) => setSelectedRun(e.target.value)}
+              disabled={loading}
+            >
+              <option value="">-- Select a run --</option>
+              {availableRuns.map((run) => (
+                <option key={run.run_dir} value={run.run_dir}>
+                  {run.run_name} ({run.metadata.models?.join(", ") || "N/A"} ×{" "}
+                  {run.metadata.defenses?.join(", ") || "N/A"})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="button-group">
+            <button
+              onClick={runStatisticalAnalysis}
+              disabled={!selectedRun || loading}
+              className="btn-primary"
+            >
+              {loading ? "⏳ Analyzing..." : "📊 Statistical"}
+            </button>
+
+            <button
+              onClick={runComparativeAnalysis}
+              disabled={!selectedRun || loading}
+              className="btn-primary"
+            >
+              {loading ? "⏳ Analyzing..." : "📈 Comparative"}
+            </button>
+
+            <button
+              onClick={runBothAnalyses}
+              disabled={!selectedRun || loading}
+              className="btn-success"
+            >
+              {loading ? "⏳ Analyzing..." : "🚀 Run Both"}
+            </button>
+
+            <button onClick={fetchAvailableRuns} disabled={loading} className="btn-secondary">
+              🔄 Refresh
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="error-message">
+            <strong>❌ Error:</strong> {error}
+          </div>
+        )}
+
+        {(statisticalData || comparativeData) && (
+          <div className="view-toggle">
+            <button
+              className={activeView === "statistical" ? "active" : ""}
+              onClick={() => setActiveView("statistical")}
+              disabled={!statisticalData}
+            >
+              📊 Statistical
+            </button>
+            <button
+              className={activeView === "comparative" ? "active" : ""}
+              onClick={() => setActiveView("comparative")}
+              disabled={!comparativeData}
+            >
+              📈 Comparative
+            </button>
+          </div>
+        )}
+
+        {activeView === "statistical" && renderStatisticalView()}
+        {activeView === "comparative" && renderComparativeView()}
+
+        {!statisticalData && !comparativeData && !loading && (
+          <div className="empty-state">
+            <p>
+              👆 Select a matrix run above and click an analysis button to view comprehensive statistical and comparative
+              results.
+            </p>
+            <p>
+              Includes success rates, confidence intervals, p-values, Cohen's d, and cross-model/defense comparisons.
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

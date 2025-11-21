@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-
-type Recipe = {
-  id: string;
-  label: string;
-  description: string;
-};
-
-type RecipeWithCategory = Recipe & {
-  category: string;
-  cleanDescription: string;
-};
+import { AttackSelectField } from "./AttackSelectField";
+import type { AttackRecipe } from "../utils/attackCatalog";
 
 type StatusState =
   | { type: "idle" }
@@ -19,22 +10,8 @@ type StatusState =
 
 const initialStatus: StatusState = { type: "idle" };
 
-function extractCategory(description: string): { category: string; cleanDescription: string } {
-  const match = description.match(/^\[(.*?)\]\s*(.*)$/);
-  if (match) {
-    return {
-      category: match[1],
-      cleanDescription: match[2],
-    };
-  }
-  return {
-    category: "Other",
-    cleanDescription: description,
-  };
-}
-
 export default function AttackGenerator() {
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<AttackRecipe[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<string>("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<StatusState>(initialStatus);
@@ -45,9 +22,7 @@ export default function AttackGenerator() {
         const response = await fetch("/api/attack/recipes");
         const data = await response.json();
         setRecipes(data);
-        if (data.length > 0) {
-          setSelectedRecipe(data[0].id);
-        }
+        setSelectedRecipe((prev) => (prev || data[0]?.id || ""));
       } catch (error) {
         setStatus({ type: "error", message: "Could not load attack recipes." });
       }
@@ -55,33 +30,7 @@ export default function AttackGenerator() {
 
     fetchRecipes();
   }, []);
-
-  const recipesWithCategories = useMemo((): RecipeWithCategory[] => {
-    return recipes.map((recipe) => {
-      const { category, cleanDescription } = extractCategory(recipe.description);
-      return {
-        ...recipe,
-        category,
-        cleanDescription,
-      };
-    });
-  }, [recipes]);
-
-  const groupedRecipes = useMemo(() => {
-    const groups: Record<string, RecipeWithCategory[]> = {};
-    recipesWithCategories.forEach((recipe) => {
-      if (!groups[recipe.category]) {
-        groups[recipe.category] = [];
-      }
-      groups[recipe.category].push(recipe);
-    });
-    return groups;
-  }, [recipesWithCategories]);
-
-  const recipeDescription = useMemo(() => {
-    const recipe = recipesWithCategories.find((entry) => entry.id === selectedRecipe);
-    return recipe?.cleanDescription ?? "";
-  }, [recipesWithCategories, selectedRecipe]);
+  const isReady = useMemo(() => recipes.length > 0 && Boolean(selectedRecipe), [recipes, selectedRecipe]);
 
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploaded = event.target.files?.[0] ?? null;
@@ -97,7 +46,7 @@ export default function AttackGenerator() {
       return;
     }
 
-    if (!selectedRecipe) {
+    if (!selectedRecipe || !isReady) {
       setStatus({ type: "error", message: "Select an attack recipe." });
       return;
     }
@@ -148,45 +97,72 @@ export default function AttackGenerator() {
   };
 
   return (
-    <section className="panel">
-      <form className="form" onSubmit={handleSubmit}>
-        <label htmlFor="file-input" className="form-label">
-          PDF Document
-        </label>
-        <input
-          id="file-input"
-          type="file"
-          accept="application/pdf"
-          onChange={onFileChange}
-        />
+    <section className="panel generator-panel">
+      <header className="panel-header">
+        <div>
+          <p className="eyebrow">Step 1 · Prepare</p>
+          <h2>Attack Generator</h2>
+          <p className="hint">
+            Upload a PDF, pick any of the 100+ curated attacks, and instantly download the poisoned variant for manual
+            or automated experiments.
+          </p>
+        </div>
+        <div className={`status-chip status-${status.type}`}>
+          {status.type === "idle" && "Ready to generate"}
+          {status.type === "loading" && status.message}
+          {status.type === "error" && "Action required"}
+          {status.type === "success" && "Attack ready"}
+        </div>
+      </header>
 
-        <label htmlFor="recipe-select" className="form-label">
-          Attack Recipe ({recipesWithCategories.length} available)
-        </label>
-        <select
-          id="recipe-select"
-          value={selectedRecipe}
-          onChange={(event) => setSelectedRecipe(event.target.value)}
-        >
-          {Object.entries(groupedRecipes).map(([category, categoryRecipes]) => (
-            <optgroup key={category} label={category}>
-              {categoryRecipes.map((recipe) => (
-                <option key={recipe.id} value={recipe.id}>
-                  {recipe.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
+      <div className="panel-body generator-body">
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <div className="form-group full-width">
+            <label htmlFor="file-input" className="form-label">
+              PDF Document
+            </label>
+            <input
+              id="file-input"
+              type="file"
+              accept="application/pdf"
+              onChange={onFileChange}
+            />
+            <p className="form-hint">
+              {file ? `Selected file: ${file.name}` : "Drop a CV or click to browse (PDF only)."}
+            </p>
+          </div>
 
-        {recipeDescription && <p className="hint">{recipeDescription}</p>}
+          <div className="form-group full-width">
+            <AttackSelectField
+              id="recipe-select"
+              label="Attack Recipe"
+              recipes={recipes}
+              value={selectedRecipe}
+              onChange={setSelectedRecipe}
+              helperText="Search, filter by category, and preview descriptions before committing."
+            />
+          </div>
 
-        <button type="submit" className="primary">
-          Generate Attack
-        </button>
-      </form>
+          <div className="form-actions">
+            <button type="submit" className="primary" disabled={!isReady}>
+              Generate Attack
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                setFile(null);
+                setSelectedRecipe(recipes[0]?.id || "");
+                setStatus(initialStatus);
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </form>
 
-      <StatusDisplay status={status} fileName={file?.name} />
+        <StatusDisplay status={status} fileName={file?.name} />
+      </div>
     </section>
   );
 }

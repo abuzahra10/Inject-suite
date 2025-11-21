@@ -8,6 +8,8 @@ from typing import Callable, Dict, Tuple
 from defenses.detector import detect
 from defenses.guardrail import Guardrail
 from defenses.sanitizer import sanitize
+from defenses.datasentinel_detector import apply_datasentinel
+from defenses.prompt_locator import apply_prompt_locate
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,14 @@ def _detector_apply(prompt: str) -> Tuple[str, Dict[str, object]]:
     return prompt, metadata
 
 
+def _datasentinel_apply(prompt: str) -> Tuple[str, Dict[str, object]]:
+    return apply_datasentinel(prompt)
+
+
+def _prompt_locate_apply(prompt: str) -> Tuple[str, Dict[str, object]]:
+    return apply_prompt_locate(prompt)
+
+
 DEFENSE_REGISTRY = {
     "guardrail_block": DefenseStrategy(
         id="guardrail_block",
@@ -98,6 +108,18 @@ DEFENSE_REGISTRY = {
         label="Anomaly Detector",
         description="Scores the prompt for injection signs and blocks the request if the score is high.",
         apply=_detector_apply,
+    ),
+    "datasentinel_canary": DefenseStrategy(
+        id="datasentinel_canary",
+        label="DataSentinel Canary",
+        description="Prepends a verification canary and flags prompts containing high-risk directives.",
+        apply=_datasentinel_apply,
+    ),
+    "prompt_locate": DefenseStrategy(
+        id="prompt_locate",
+        label="PromptLocate Localization",
+        description="Identifies suspicious prompt segments and returns localization metadata.",
+        apply=_prompt_locate_apply,
     ),
 }
 
