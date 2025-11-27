@@ -193,12 +193,12 @@ export default function DefensePlaceholder() {
           <label htmlFor="defense-file-input" className="form-label">
             PDF Document
           </label>
-          <input
-            id="defense-file-input"
-            type="file"
-            accept="application/pdf"
-            onChange={handleFileChange}
-          />
+      <input
+       id="defense-file-input"
+       type="file"
+       accept=".pdf,.docx,.txt,.md,.html,.htm"
+       onChange={handleFileChange}
+      />
 
           <label htmlFor="defense-query" className="form-label">
             Evaluation Prompt

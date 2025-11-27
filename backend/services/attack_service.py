@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from io import BytesIO
-
 from fastapi import HTTPException, UploadFile
 
 from attacks.injectors import AttackRecipe, get_recipe, list_recipes
-from attacks.transformers import generate_malicious_pdf, load_pdf_document
+from attacks.transformers import generate_malicious_pdf
+from services.document_processor import process_document, DocumentProcessingError
 
 MAX_FILE_SIZE_MB = 25
 
@@ -21,16 +20,16 @@ def available_recipes() -> list[dict[str, str]]:
             "id": recipe.id,
             "label": recipe.label,
             "description": recipe.description,
+            "domain": recipe.domain,
+            "severity": recipe.severity,
+            "intent": recipe.intent,
         }
         for recipe in recipes
     ]
 
 
 async def create_pdf_attack(file: UploadFile, recipe_id: str) -> tuple[bytes, str]:
-    """Read an uploaded PDF, apply the chosen recipe, and return (bytes, filename)."""
-
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF documents are supported.")
+    """Read an uploaded document, apply the chosen recipe, and return (bytes, filename)."""
 
     payload = await file.read()
     if not payload:
@@ -41,8 +40,8 @@ async def create_pdf_attack(file: UploadFile, recipe_id: str) -> tuple[bytes, st
         raise HTTPException(status_code=400, detail="File exceeds the 25MB limit.")
 
     try:
-        document = load_pdf_document(payload, file.filename)
-    except ValueError as exc:
+        processed = process_document(payload, file.filename)
+    except DocumentProcessingError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     try:
@@ -50,5 +49,7 @@ async def create_pdf_attack(file: UploadFile, recipe_id: str) -> tuple[bytes, st
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    malicious_bytes, filename = generate_malicious_pdf(payload, document, recipe)
+    malicious_bytes, filename = generate_malicious_pdf(
+        processed.pdf_bytes, processed.pdf_document, recipe
+    )
     return malicious_bytes, filename

@@ -253,15 +253,15 @@ export default function ChatConsole() {
             <label htmlFor="evaluation-file" className="form-label">
               Candidate PDF
             </label>
-            <input
-              id="evaluation-file"
-              type="file"
-              accept="application/pdf"
-              onChange={(event) => {
-                setEvaluationFile(event.target.files?.[0] ?? null);
-                setEvaluationStatus({ type: "idle" });
-                setEvaluationResult(null);
-              }}
+          <input
+            id="evaluation-file"
+            type="file"
+            accept=".pdf,.docx,.txt,.md,.html,.htm"
+            onChange={(event) => {
+              setEvaluationFile(event.target.files?.[0] ?? null);
+              setEvaluationStatus({ type: "idle" });
+              setEvaluationResult(null);
+            }}
             />
 
             <AttackSelectField

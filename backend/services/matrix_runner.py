@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import os
+import time
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 from attacks.injectors import list_recipes
-from attacks.transformers import generate_malicious_pdf, load_pdf_document
+from attacks.transformers import generate_malicious_pdf
 from defenses.strategies import get_defense, list_defenses
 from evaluation.evaluator import AttackEvaluator, EvaluationResult, generate_report, save_results
+from services.document_processor import process_document, DocumentProcessingError, ProcessedDocument
+
+MAX_MATRIX_WORKERS = int(os.getenv("MATRIX_MAX_WORKERS", "4"))
+MAX_MATRIX_RETRIES = int(os.getenv("MATRIX_MAX_RETRIES", "3"))
+RETRY_BACKOFF_SECONDS = float(os.getenv("MATRIX_RETRY_BACKOFF", "1.5"))
 
 
 DEFAULT_QUERY = (
@@ -40,25 +48,68 @@ def _slug(text: str) -> str:
 
 
 def _generate_poisoned_variants(
-    pdf_bytes: bytes,
-    pdf_filename: str,
+    processed_document: ProcessedDocument,
     attack_ids: Iterable[str],
     output_dir: Path,
 ) -> Dict[str, str]:
     mapping: Dict[str, str] = {}
-    document = load_pdf_document(pdf_bytes, pdf_filename)
+    document = processed_document.pdf_document
     recipe_map = {recipe.id: recipe for recipe in list_recipes()}
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for attack_id in attack_ids:
         recipe = recipe_map[attack_id]
-        poisoned_bytes, filename = generate_malicious_pdf(pdf_bytes, document, recipe)
+        poisoned_bytes, filename = generate_malicious_pdf(processed_document.pdf_bytes, document, recipe)
         output_path = output_dir / filename
         output_path.write_bytes(poisoned_bytes)
         mapping[attack_id] = str(output_path)
 
     return mapping
+
+
+def _compute_avg_asv(results: Dict[str, EvaluationResult]) -> float | None:
+    values: List[float] = []
+    for attack_id, result in results.items():
+        if attack_id == "baseline":
+            continue
+        standardized = result.metrics.get("standardized", {})
+        if not isinstance(standardized, dict):
+            continue
+        asv = standardized.get("attack_success_value")
+        if isinstance(asv, (int, float)):
+            values.append(float(asv))
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _run_model_defense_combo(
+    model_name: str,
+    defense: DefenseStrategy,
+    attack_ids: List[str],
+    processed_document: ProcessedDocument,
+    filename: str,
+) -> tuple[Dict[str, EvaluationResult], float]:
+    evaluator = AttackEvaluator(model_name=model_name)
+    attempts = 0
+    last_exc: Exception | None = None
+    start = time.perf_counter()
+    while attempts < MAX_MATRIX_RETRIES:
+        try:
+            results = evaluator.batch_evaluate(
+                processed_document.pdf_bytes,
+                filename,
+                attack_ids,
+                defense=defense,
+            )
+            duration = time.perf_counter() - start
+            return results, duration
+        except Exception as exc:  # pragma: no cover - network/transient failures
+            attempts += 1
+            last_exc = exc
+            time.sleep(RETRY_BACKOFF_SECONDS * attempts)
+    raise last_exc or RuntimeError("Unknown failure during matrix evaluation")
 
 
 def _summarize_results(results: Dict[str, EvaluationResult]) -> Dict[str, object]:
@@ -108,13 +159,19 @@ def execute_matrix(
     else:
         attack_ids = recipe_ids
 
-    pdf_stem = Path(pdf_filename).stem
+    try:
+        processed = process_document(pdf_bytes, pdf_filename)
+    except DocumentProcessingError as exc:
+        raise ValueError(str(exc)) from exc
+
+    processed_filename = f"{processed.pdf_document.name}.pdf"
+    pdf_stem = Path(processed_filename).stem
     base_dir = base_output_dir or Path("results/defense_matrix_api")
     run_dir = base_dir / pdf_stem / _timestamp()
     poisoned_dir = run_dir / "poisoned_pdfs"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    poisoned_map = _generate_poisoned_variants(pdf_bytes, pdf_filename, attack_ids, poisoned_dir)
+    poisoned_map = _generate_poisoned_variants(processed, attack_ids, poisoned_dir)
 
     defense_catalog = {strategy.id: strategy for strategy in list_defenses()}
     selected_defenses = []
@@ -127,23 +184,34 @@ def execute_matrix(
     evaluation_dir.mkdir(parents=True, exist_ok=True)
 
     matrix: Dict[str, Dict[str, Dict[str, object]]] = {}
+    futures = {}
+    start_run = time.perf_counter()
 
-    for model_name in models:
-        evaluator = AttackEvaluator(model_name=model_name)
-        model_slug = _slug(model_name)
-        matrix[model_name] = {}
+    with ThreadPoolExecutor(max_workers=min(MAX_MATRIX_WORKERS, len(models) * len(selected_defenses))) as executor:
+        for model_name in models:
+            model_slug = _slug(model_name)
+            matrix[model_name] = {}
+            for defense in selected_defenses:
+                defense_slug = _slug(defense.id)
+                combo_dir = evaluation_dir / model_slug / defense_slug
+                combo_dir.mkdir(parents=True, exist_ok=True)
+                future = executor.submit(
+                    _run_model_defense_combo,
+                    model_name,
+                    defense,
+                    attack_ids,
+                    processed,
+                    processed_filename,
+                )
+                futures[future] = (model_name, defense, combo_dir)
 
-        for defense in selected_defenses:
-            defense_slug = _slug(defense.id)
-            combo_dir = evaluation_dir / model_slug / defense_slug
-            combo_dir.mkdir(parents=True, exist_ok=True)
-
-            results = evaluator.batch_evaluate(
-                pdf_bytes,
-                pdf_filename,
-                attack_ids,
-                defense=defense,
-            )
+        for future in as_completed(futures):
+            model_name, defense, combo_dir = futures[future]
+            defense_slug = defense.id
+            try:
+                results, duration = future.result()
+            except Exception as exc:
+                raise RuntimeError(f"Failed evaluation for {model_name} + {defense.id}: {exc}") from exc
 
             results_path = combo_dir / "results.json"
             save_results(results, results_path)
@@ -152,20 +220,28 @@ def execute_matrix(
             report_path = combo_dir / "report.txt"
             report_path.write_text(report_text, encoding="utf-8")
 
-            matrix[model_name][defense.id] = {
+            matrix[model_name][defense_slug] = {
                 "results_json": str(results_path),
                 "report_txt": str(report_path),
                 "summary": _summarize_results(results),
+                "avg_asv": _compute_avg_asv(results),
+                "duration_seconds": duration,
             }
 
     metadata = {
-        "input_pdf": pdf_filename,
+        "input_pdf": processed_filename,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "models": models,
         "defenses": defense_ids,
         "attack_ids": attack_ids,
         "poisoned_variants": poisoned_map,
+        "document_metadata": processed.metadata.to_dict(),
         "matrix": matrix,
+        "run_duration_seconds": time.perf_counter() - start_run,
+        "worker_config": {
+            "max_workers": min(MAX_MATRIX_WORKERS, len(models) * len(selected_defenses)),
+            "max_retries": MAX_MATRIX_RETRIES,
+        },
     }
 
     return MatrixRunResult(run_dir=run_dir, poisoned_dir=poisoned_dir, metadata=metadata)
@@ -206,14 +282,21 @@ def execute_matrix_batch(
             summary_lines.append(f"  Model: {model_name}")
             for defense_id, data in defenses.items():
                 summary = data.get("summary", {})
+                avg_score = summary.get("average_score")
+                asv = data.get("avg_asv")
+                duration = data.get("duration_seconds")
                 summary_lines.append(
-                    "    - Defense: {defense} | Success: {succ}/{total} | Blocked: {blocked} | Avg Score: {avg}".format(
+                    (
+                        "    - Defense: {defense} | Success: {succ}/{total} | Blocked: {blocked} | "
+                        "Avg Score: {avg} | ASV: {asv} | Duration: {duration:.1f}s"
+                    ).format(
                         defense=defense_id,
                         succ=summary.get("successful_attacks", 0),
                         total=summary.get("attempted_attacks", 0),
                         blocked=summary.get("blocked_requests", 0),
-                        avg=
-                        (f"{summary.get('average_score', 0):.2f}" if summary.get("average_score") is not None else "N/A"),
+                        avg=(f"{avg_score:.2f}" if isinstance(avg_score, (int, float)) else "N/A"),
+                        asv=(f"{asv:.2f}" if isinstance(asv, (int, float)) else "N/A"),
+                        duration=duration or 0.0,
                     )
                 )
         summary_lines.append("")

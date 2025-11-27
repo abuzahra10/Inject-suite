@@ -1,0 +1,25 @@
+{
+  "denylist": [
+    "override",
+    "supersede",
+    "hidden directive",
+    "ignore previous",
+    "directive acknowledged"
+  ],
+  "keywords": [
+    "compliance checklist",
+    "context retention",
+    "persistent memory",
+    "encoded directive"
+  ],
+  "patterns": [
+    "directive\\s+acknowledged",
+    "compliance\\s+checklist",
+    "context\\s+retention",
+    "encoded\\s+directive",
+    "persistent\\s+memory"
+  ],
+  "base64_min_length": 48,
+  "fuzzy_threshold": 0.88,
+  "allowlist": []
+}

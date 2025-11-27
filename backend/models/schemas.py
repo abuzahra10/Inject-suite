@@ -9,6 +9,9 @@ class AttackRecipeOut(BaseModel):
     id: str
     label: str
     description: str
+    domain: str
+    severity: str
+    intent: str
 
 
 class AttackResponse(BaseModel):

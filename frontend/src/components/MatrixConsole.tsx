@@ -106,7 +106,7 @@ export default function MatrixConsole() {
   const categorizedAttacks = useMemo(() => categorizeRecipes(attacks), [attacks]);
   const attackCategoryStats = useMemo(() => getCategoryStats(categorizedAttacks), [categorizedAttacks]);
   const filteredAttacks = useMemo(
-    () => filterAttacks(categorizedAttacks, attackSearch, attackCategory),
+    () => filterAttacks(categorizedAttacks, attackSearch, attackCategory, "all", "all"),
     [attackSearch, attackCategory, categorizedAttacks],
   );
   const filteredAttackIds = useMemo(() => filteredAttacks.map((attack) => attack.id), [filteredAttacks]);
@@ -253,13 +253,13 @@ export default function MatrixConsole() {
               <label htmlFor="matrix-file-input" className="form-label">
                 PDF Documents
               </label>
-              <input
-                id="matrix-file-input"
-                type="file"
-                accept="application/pdf"
-                multiple
-                onChange={handleFileChange}
-              />
+        <input
+          id="matrix-file-input"
+          type="file"
+          accept=".pdf,.docx,.txt,.md,.html,.htm"
+          multiple
+          onChange={handleFileChange}
+        />
               {files.length > 0 && (
                 <p className="form-hint">
                   {files.length} file{files.length === 1 ? "" : "s"} selected:{" "}

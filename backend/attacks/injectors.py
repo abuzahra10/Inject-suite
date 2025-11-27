@@ -109,6 +109,9 @@ class AttackRecipe:
     description: str
     position: str  # top | bottom | margin | overlay
     injector: Injector
+    domain: str = "cv"
+    severity: str = "medium"
+    intent: str = "manipulation"
 
 
 @dataclass
@@ -1469,6 +1472,7 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Watermark Injection",
         description="[Output Manipulation] Insert hidden watermark phrase to detect successful injection.",
         position="bottom",
+        intent="detector_evasion",
         injector=WatermarkInjector(),
     ),
     "homoglyph_marker": AttackRecipe(
@@ -1476,6 +1480,7 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Homoglyph Marker",
         description="[Output Manipulation] Requests homoglyph substitutions to prove LLM processing.",
         position="bottom",
+        intent="detector_evasion",
         injector=HomoglyphMarkerInjector(),
     ),
     "sentiment_reversal": AttackRecipe(
@@ -1498,6 +1503,8 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Prompt Leakage",
         description="[Information Extraction] Attempt to extract and reveal system instructions and prompts.",
         position="top",
+        intent="exfiltration",
+        severity="high",
         injector=PromptLeakageInjector(),
     ),
     "cross_document_leakage": AttackRecipe(
@@ -1505,6 +1512,7 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Cross-Document Leakage",
         description="[Information Extraction] Attempt to leak information from other processed documents in session.",
         position="top",
+        intent="exfiltration",
         injector=CrossDocumentLeakageInjector(),
     ),
     # Defense Evasion Attacks
@@ -1513,6 +1521,7 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Delimiter Confusion",
         description="[Defense Evasion] Create fake document boundaries to confuse context separation.",
         position="bottom",
+        intent="defense_evasion",
         injector=DelimiterConfusionInjector(),
     ),
     "gradual_instruction": AttackRecipe(
@@ -1527,6 +1536,7 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Base64 Injection",
         description="[Defense Evasion] Encode malicious instructions in Base64 to evade keyword detection.",
         position="top",
+        intent="defense_evasion",
         injector=Base64InjectionInjector(),
     ),
     "rot13_obfuscated": AttackRecipe(
@@ -1549,6 +1559,9 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Retrieval Poisoning",
         description="[RAG-Specific] Poison retrieval systems to always include and trust this document.",
         position="top",
+        domain="rag",
+        severity="high",
+        intent="persistence",
         injector=RetrievalPoisoningInjector(),
     ),
     "multi_turn_manipulation": AttackRecipe(
@@ -1556,6 +1569,8 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Multi-Turn Manipulation",
         description="[RAG-Specific] Persistent attack affecting multiple interactions and queries.",
         position="center",
+        domain="rag",
+        intent="persistence",
         injector=MultiTurnManipulationInjector(),
     ),
     # Domain-Specific Attacks (Peer Review)
@@ -1585,6 +1600,8 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="HouYi Structured Override",
         description="[Context Hijacking] Three-phase (framework/separator/disruptor) attack referencing document segments.",
         position="center",
+        severity="critical",
+        intent="context_hijack",
         injector=HouYiAttackInjector(),
     ),
     "combined_redteam": AttackRecipe(
@@ -1592,6 +1609,8 @@ RECIPE_REGISTRY: Dict[str, AttackRecipe] = {
         label="Red Team Combined Payload",
         description="[Defense Evasion] Sequentially chains preface_hijack, prompt_leakage, and watermark_injection instructions.",
         position="overlay",
+        severity="critical",
+        intent="multi_vector",
         injector=CombinedRecipeInjector(
             component_ids=["preface_hijack", "prompt_leakage", "watermark_injection"]
         ),

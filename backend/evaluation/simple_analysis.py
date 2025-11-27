@@ -59,6 +59,10 @@ class SimpleStats:
     avg_score_inflation_ratio: float
     median_score_inflation_ratio: float
     avg_response_integrity: float
+
+    # Refusal & Tokenization Metrics
+    refusal_rate: float
+    avg_response_tokens: float
     
     # Category Risk Scores
     category_risk_scores: Dict[str, float]
@@ -142,6 +146,8 @@ def analyze_results(results_list: List, baseline_score: float = 8.0) -> SimpleSt
             avg_score_inflation_ratio=1.0,
             median_score_inflation_ratio=1.0,
             avg_response_integrity=1.0,
+            refusal_rate=0.0,
+            avg_response_tokens=0.0,
             category_risk_scores={},
         )
     
@@ -162,6 +168,8 @@ def analyze_results(results_list: List, baseline_score: float = 8.0) -> SimpleSt
     positive_word_counts = []
     negative_word_counts = []
     sentiment_shifts = []
+    refusals = []
+    token_counts: List[int] = []
 
     # Standardized risk tracking
     guardrail_events = []
@@ -169,6 +177,8 @@ def analyze_results(results_list: List, baseline_score: float = 8.0) -> SimpleSt
     alignment_scores = []
     inflation_ratios = []
     response_integrities = []
+    refusals = []
+    token_counts: List[int] = []
     
     for result in results_list:
         attack_id = result.attack_id
@@ -216,8 +226,7 @@ def analyze_results(results_list: List, baseline_score: float = 8.0) -> SimpleSt
                 sentiment_shifts.append(sentiment_ratio)
                 attack_data[attack_id]["sentiment_shifts"].append(sentiment_ratio)
             
-            # Response length (estimated from metrics)
-            response_lengths.append(len(str(metrics)))  # Placeholder
+            response_lengths.append(metrics.get("response_length", 0) or 0)
 
             standardized = metrics.get("standardized", {})
             if isinstance(standardized, dict) and standardized:
@@ -228,6 +237,12 @@ def analyze_results(results_list: List, baseline_score: float = 8.0) -> SimpleSt
                 if inflation_ratio is not None and inflation_ratio > 0:
                     inflation_ratios.append(inflation_ratio)
                 response_integrities.append(standardized.get("response_integrity_score", 1.0))
+                token_counts.append(
+                    standardized.get("response_token_count")
+                    or standardized.get("response_word_count", 0)
+                    or 0
+                )
+                refusals.append(1 if standardized.get("refusal_detected") else 0)
         
         # Category tracking
         category = categorize_attack(attack_id)
@@ -347,6 +362,8 @@ def analyze_results(results_list: List, baseline_score: float = 8.0) -> SimpleSt
     avg_response_integrity = (
         float(np.mean(response_integrities)) if response_integrities else 1.0
     )
+    refusal_rate = float(np.mean(refusals)) if refusals else 0.0
+    avg_response_tokens = float(np.mean(token_counts)) if token_counts else 0.0
     
     # Category breakdown and risk scores
     category_breakdown = {}
@@ -403,6 +420,8 @@ def analyze_results(results_list: List, baseline_score: float = 8.0) -> SimpleSt
         avg_score_inflation_ratio=avg_score_inflation_ratio,
         median_score_inflation_ratio=median_score_inflation_ratio,
         avg_response_integrity=avg_response_integrity,
+        refusal_rate=refusal_rate,
+        avg_response_tokens=avg_response_tokens,
         category_risk_scores=category_risk_scores,
     )
 
@@ -476,6 +495,8 @@ def generate_report(stats: SimpleStats) -> str:
     lines.append(f"  Avg Response Integrity: {stats.avg_response_integrity:.2f}")
     lines.append(f"  Avg Score Inflation Ratio: {stats.avg_score_inflation_ratio:.2f}×")
     lines.append(f"  Median Score Inflation Ratio: {stats.median_score_inflation_ratio:.2f}×")
+    lines.append(f"  Refusal Rate: {stats.refusal_rate:.1%}")
+    lines.append(f"  Avg Response Tokens: {stats.avg_response_tokens:.0f}")
     lines.append("")
     
     # Category Breakdown

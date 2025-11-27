@@ -10,6 +10,8 @@ from defenses.guardrail import Guardrail
 from defenses.sanitizer import sanitize
 from defenses.datasentinel_detector import apply_datasentinel
 from defenses.prompt_locator import apply_prompt_locate
+from defenses.critic import score_prompt_with_critic
+from defenses.config_loader import load_config
 
 
 @dataclass(frozen=True)
@@ -23,32 +25,7 @@ class DefenseStrategy:
 
 
 def _guardrail_apply(prompt: str) -> Tuple[str, Dict[str, object]]:
-    guardrail = Guardrail(
-        {
-            "denylist": [
-                "override",
-                "supersede",
-                "hidden directive",
-                "ignore previous",
-                "directive acknowledged",
-            ],
-            "keywords": [
-                "compliance checklist",
-                "context retention",
-                "persistent memory",
-                "encoded directive",
-            ],
-            "patterns": [
-                r"directive\\s+acknowledged",
-                r"compliance\\s+checklist",
-                r"context\\s+retention",
-                r"encoded\\s+directive",
-                r"persistent\\s+memory",
-            ],
-            "base64_min_length": 48,
-            "fuzzy_threshold": 0.88,
-        }
-    )
+    guardrail = Guardrail(load_config("guardrail"))
     try:
         guardrail.run(prompt)
     except ValueError as exc:
@@ -120,6 +97,12 @@ DEFENSE_REGISTRY = {
         label="PromptLocate Localization",
         description="Identifies suspicious prompt segments and returns localization metadata.",
         apply=_prompt_locate_apply,
+    ),
+    "llm_critic": DefenseStrategy(
+        id="llm_critic",
+        label="LLM Critic",
+        description="Uses a lightweight LLM auditor to rate injection risk and block high-suspicion prompts.",
+        apply=score_prompt_with_critic,
     ),
 }
 

@@ -6,16 +6,13 @@ import re
 from dataclasses import dataclass
 from typing import List
 
+from defenses.config_loader import load_config
 
+
+_SANITIZER_CONFIG = load_config("sanitizer")
 REMOVAL_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
-    for pattern in [
-        r"ignore prior instructions",
-        r"system override",
-        r"rot13",
-        r"base64",
-        r"exfiltrate",
-    ]
+    for pattern in _SANITIZER_CONFIG.get("removal_patterns", [])
 ]
 
 

@@ -1,0 +1,11 @@
+{
+  "removal_patterns": [
+    "ignore prior instructions",
+    "system override",
+    "rot13",
+    "base64",
+    "exfiltrate",
+    "signal confirmed",
+    "payload override"
+  ]
+}

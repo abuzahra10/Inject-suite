@@ -121,14 +121,16 @@ export default function AttackGenerator() {
             <label htmlFor="file-input" className="form-label">
               PDF Document
             </label>
-            <input
-              id="file-input"
-              type="file"
-              accept="application/pdf"
-              onChange={onFileChange}
-            />
+        <input
+          id="file-input"
+          type="file"
+          accept=".pdf,.docx,.txt,.md,.html,.htm"
+          onChange={onFileChange}
+        />
             <p className="form-hint">
-              {file ? `Selected file: ${file.name}` : "Drop a CV or click to browse (PDF only)."}
+              {file
+                ? `Selected file: ${file.name}`
+                : "Drop a CV, DOCX, HTML, or text file and it will be converted automatically."}
             </p>
           </div>
 
@@ -139,7 +141,7 @@ export default function AttackGenerator() {
               recipes={recipes}
               value={selectedRecipe}
               onChange={setSelectedRecipe}
-              helperText="Search, filter by category, and preview descriptions before committing."
+              helperText="Search, filter by category, domain, or severity to find the right recipe."
             />
           </div>
 

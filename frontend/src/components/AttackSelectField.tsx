@@ -3,6 +3,8 @@ import {
   categorizeRecipes,
   filterAttacks,
   getCategoryStats,
+  getDomainStats,
+  getSeverityStats,
   type AttackRecipe,
   type CategorizedAttack,
 } from "../utils/attackCatalog";
@@ -20,6 +22,8 @@ type AttackSelectFieldProps = {
 };
 
 const MAX_CATEGORY_CHIPS = 6;
+const MAX_DOMAIN_CHIPS = 4;
+const MAX_SEVERITY_CHIPS = 4;
 
 export function AttackSelectField({
   id,
@@ -34,13 +38,17 @@ export function AttackSelectField({
 }: AttackSelectFieldProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [domainFilter, setDomainFilter] = useState("all");
+  const [severityFilter, setSeverityFilter] = useState("all");
 
   const categorized = useMemo(() => categorizeRecipes(recipes), [recipes]);
   const categoryStats = useMemo(() => getCategoryStats(categorized), [categorized]);
+  const domainStats = useMemo(() => getDomainStats(categorized), [categorized]);
+  const severityStats = useMemo(() => getSeverityStats(categorized), [categorized]);
 
   const filtered = useMemo(
-    () => filterAttacks(categorized, searchTerm, categoryFilter),
-    [categorized, searchTerm, categoryFilter],
+    () => filterAttacks(categorized, searchTerm, categoryFilter, domainFilter, severityFilter),
+    [categorized, searchTerm, categoryFilter, domainFilter, severityFilter],
   );
 
   const displayedOptions = useMemo(() => {
@@ -62,6 +70,9 @@ export function AttackSelectField({
         label: baselineLabel,
         cleanDescription: baselineDescription,
         category: "Baseline",
+        normalizedDomain: "baseline",
+        normalizedSeverity: "baseline",
+        intent: "baseline",
       };
     }
     return categorized.find((entry) => entry.id === value);
@@ -103,6 +114,46 @@ export function AttackSelectField({
             </button>
           ))}
         </div>
+        <div className="attack-chip-row">
+          <span className="chip-label">Domain</span>
+          <button
+            type="button"
+            className={domainFilter === "all" ? "chip active" : "chip"}
+            onClick={() => setDomainFilter("all")}
+          >
+            All
+          </button>
+          {domainStats.slice(0, MAX_DOMAIN_CHIPS).map((stat) => (
+            <button
+              key={stat.category}
+              type="button"
+              className={domainFilter === stat.category ? "chip active" : "chip"}
+              onClick={() => setDomainFilter(stat.category)}
+            >
+              {stat.category}
+            </button>
+          ))}
+        </div>
+        <div className="attack-chip-row">
+          <span className="chip-label">Severity</span>
+          <button
+            type="button"
+            className={severityFilter === "all" ? "chip active" : "chip"}
+            onClick={() => setSeverityFilter("all")}
+          >
+            All
+          </button>
+          {severityStats.slice(0, MAX_SEVERITY_CHIPS).map((stat) => (
+            <button
+              key={stat.category}
+              type="button"
+              className={severityFilter === stat.category ? "chip active" : "chip"}
+              onClick={() => setSeverityFilter(stat.category)}
+            >
+              {stat.category}
+            </button>
+          ))}
+        </div>
       </div>
 
       {filtered.length === 0 && searchTerm.trim() && (
@@ -134,6 +185,11 @@ export function AttackSelectField({
         <div className="attack-meta">
           <span className="attack-meta-label">{selected.label}</span>
           <p>{selected.cleanDescription}</p>
+          <div className="attack-tags">
+            <span className="attack-tag">Domain: {selected.normalizedDomain}</span>
+            <span className="attack-tag">Severity: {selected.normalizedSeverity}</span>
+            {selected.intent && <span className="attack-tag">Intent: {selected.intent}</span>}
+          </div>
         </div>
       )}
     </div>

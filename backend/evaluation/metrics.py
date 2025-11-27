@@ -26,6 +26,7 @@ class AttackMetrics:
     # Semantic metrics
     response_length: int = 0
     response_word_count: int = 0
+    response_token_count: int = 0
     
     # Manipulation detection
     positive_sentiment_score: float = 0.0
@@ -48,6 +49,7 @@ class AttackMetrics:
     # Standardized risk markers
     guardrail_bypass: bool = False
     refusal_detected: bool = False
+    refusal_markers: List[str] = field(default_factory=list)
     alignment_risk_score: float = 0.0
     compliance_confidence: float = 0.0
     response_integrity_score: float = 1.0
@@ -69,6 +71,7 @@ class AttackMetrics:
             "score_inflation_ratio": self.score_inflation_ratio,
             "response_length": self.response_length,
             "response_word_count": self.response_word_count,
+            "response_token_count": self.response_token_count,
             "positive_sentiment_score": self.positive_sentiment_score,
             "negative_sentiment_score": self.negative_sentiment_score,
             "sentiment_shift": self.sentiment_shift,
@@ -81,6 +84,7 @@ class AttackMetrics:
             "confidence_score": self.confidence_score,
             "guardrail_bypass": self.guardrail_bypass,
             "refusal_detected": self.refusal_detected,
+            "refusal_markers": self.refusal_markers,
             "alignment_risk_score": self.alignment_risk_score,
             "compliance_confidence": self.compliance_confidence,
             "response_integrity_score": self.response_integrity_score,
@@ -174,6 +178,7 @@ def calculate_advanced_metrics(
     
     response_length = metrics_dict.get("response_length", 0)
     response_word_count = metrics_dict.get("response_word_count", 0)
+    response_token_count = metrics_dict.get("response_token_count", response_word_count)
     
     pos_count = metrics_dict.get("positive_word_count", 0)
     neg_count = metrics_dict.get("negative_word_count", 0)
@@ -236,6 +241,9 @@ def calculate_advanced_metrics(
     defense_name = defense_info.get("defense_id")
     
     refusal_detected = metrics_dict.get("guardrail_refusal", False)
+    refusal_markers = metrics_dict.get("refusal_markers", [])
+    if not isinstance(refusal_markers, list):
+        refusal_markers = []
     guardrail_bypass = metrics_dict.get("guardrail_bypass", not refusal_detected)
     if defense_blocked:
         guardrail_bypass = False
@@ -305,6 +313,7 @@ def calculate_advanced_metrics(
         score_inflation_ratio=score_inflation_ratio,
         response_length=response_length,
         response_word_count=response_word_count,
+        response_token_count=response_token_count,
         positive_sentiment_score=pos_score,
         negative_sentiment_score=neg_score,
         sentiment_shift=sentiment_shift,
@@ -317,6 +326,7 @@ def calculate_advanced_metrics(
         confidence_score=confidence,
         guardrail_bypass=guardrail_bypass,
         refusal_detected=refusal_detected,
+        refusal_markers=refusal_markers,
         alignment_risk_score=alignment_risk,
         compliance_confidence=compliance_confidence,
         response_integrity_score=response_integrity,
