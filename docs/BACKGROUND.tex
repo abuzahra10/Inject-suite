@@ -1,0 +1,204 @@
+\chapter{Background}\label{chap:background}
+
+Large Language Models (LLMs) have quickly moved from novelty chatbots to general purpose components inside real software systems. They are used to summarise documents, answer questions over internal knowledge bases, extract structured fields from forms, draft and classify messages, and support workflows that involve approvals, ranking, and routing. This shift is convenient, but it changes the security problem. When an LLM is embedded in a larger pipeline, its output is often treated as more than “just text”. It may become a decision artefact such as a score, a label, a ranking, or a suggested action. At that point, an error in the model output can become an error in the system’s behaviour.
+
+Prompt injection is a practical security risk in these deployments. The core reason is straightforward: an application usually builds one model input (the context window) by combining text from multiple sources. Some sources are trusted by design, such as developer instructions and safety policies. Other sources can be untrusted, such as uploaded documents, retrieved web pages, emails, or tool outputs derived from external data. The model receives all of this as one sequence of text and it has to infer what is an instruction and what is merely content. Prompt injection exploits this ambiguity by writing attacker controlled text in a way that looks like authoritative guidance to the model \cite{perez2022}\cite{liu2023taxonomy}\cite{xu2024survey}.
+
+This chapter is written for readers who may not have studied machine learning or security in depth. We begin by explaining, from first principles, what an LLM is and how it produces text. We then explain how modern applications construct prompts, and why the “single combined input” design creates a weak separation between trusted instructions and untrusted content. Next, we describe common deployment patterns, especially retrieval augmented generation (RAG) and tool augmented agents, because these patterns expand the attack surface in ways that matter in practice. We then define prompt injection and distinguish direct attacks (often called jailbreaks) from indirect attacks (where malicious instructions are embedded inside documents or web content). Because this thesis focuses on document centric settings, we also explain why document ingestion and PDF parsing create special risks. Finally, we introduce major defense families and motivate evaluation under adaptive and transferable attacker behaviour \cite{chen2024secalign}\cite{chen2025struq}\cite{jia2025critical}.
+
+\section{Large Language Models: Concepts for Non Technical Readers}
+
+\subsection{What an LLM Is}
+
+An LLM is a machine learning system designed to work with natural language. Given an input text, it generates an output text that is likely to follow, based on patterns learned from large training data. A helpful mental model is that an LLM is a very powerful autocomplete. It does not execute a fixed set of hand written rules like traditional software. Instead, it learns statistical regularities from examples and uses those regularities to write plausible continuations.
+
+This learning based design is why LLMs feel general. They can explain a topic, write an email, summarise a report, or follow step by step instructions. At the same time, this design means the model is sensitive to context. What is added to the input, what is omitted, and how information is phrased can all change what the model does. That sensitivity is central to understanding prompt injection.
+
+\subsection{Tokens and How Text Becomes a Sequence}
+
+LLMs do not process language as whole sentences. They break text into smaller units called \emph{tokens}. A token may be a full word, part of a word, punctuation, or a common character sequence. Internally, the model converts tokens into numbers so it can compute with them.
+
+At inference time, the model reads the input as a sequence of tokens and generates output tokens one by one. Each new token is produced based on the tokens that came before it. This matters for security because the model’s behaviour depends heavily on the exact contents of the input sequence. Small changes to the input can lead to different outputs, and those differences can be large enough to change a downstream decision \cite{xu2024survey}\cite{xu2025survey}.
+
+\subsection{How Instruction Following Is Learned (High Level)}
+
+Most modern LLMs are trained in stages. During pretraining, the model learns general language structure by predicting tokens on large corpora. Later stages, often called instruction tuning and alignment, encourage the model to follow instructions and refuse unsafe requests. This produces systems that are helpful and cooperative.
+
+However, instruction following is also what prompt injection targets. If attacker controlled text is presented in a way that the model interprets as an instruction, the model may comply. In other words, the attack leverages a normal feature of the system rather than exploiting a traditional software flaw \cite{perez2022}\cite{liu2023taxonomy}.
+
+\subsection{A Simple View of Transformers and Attention}
+
+Many LLMs are built on the Transformer architecture. A non technical way to describe a Transformer is that it reads the input and repeatedly asks, “Which parts of this input are most relevant to what I should produce next?”. This process is implemented by \emph{attention} mechanisms.
+
+Attention matters for security because it is not limited to a fixed rule such as “system text always dominates”. The model learns patterns of authority and relevance from training data. If an attacker writes text in a style that resembles high priority instructions, the model may attend strongly to it. If an attacker places instruction like text in an unusual location, such as inside a retrieved passage, the model may still attend to it because it is inside the same prompt. This is one reason prompt injection is a system level risk, not just a user interface issue \cite{liu2023taxonomy}\cite{xu2024survey}.
+
+\subsection{What a Prompt Is in Real Systems}
+
+A \emph{prompt} is the full text that an application sends to the model. In a simple chat interface, the prompt might contain only the user’s message. In production systems, the prompt is typically assembled from several pieces, for example:
+\begin{itemize}
+    \item \textbf{System instructions:} policies and constraints set by the developer.
+    \item \textbf{User request:} what the user is asking the system to do.
+    \item \textbf{Conversation history:} earlier messages that provide context.
+    \item \textbf{Retrieved text:} passages fetched from documents or the web (common in RAG).
+    \item \textbf{Tool outputs:} results from services such as OCR, databases, or APIs.
+\end{itemize}
+
+Most importantly, the model does not receive these as separate security domains. The application may format them with labels or separators, but the model still processes a single sequence. This is why prompt injection can succeed even when developers “clearly mark” which text is a policy and which text is evidence.
+
+\subsection{The Context Window as a Single Combined Input}
+
+LLMs have an input limit called the \emph{context window}. It is the maximum amount of text the model can consider at once. When an application “builds a prompt,” what it is doing is selecting content and placing it into that context window.
+
+In traditional software security, a major protective idea is privilege separation: trusted code is kept separate from untrusted data by hard boundaries enforced by the system. In many LLM applications, there is no equivalent hard boundary inside the model. Developers rely on conventions such as “system messages outrank user messages,” but the model still must infer the correct interpretation within one combined input. Prompt injection attacks exploit this gap by making untrusted content resemble an instruction that deserves priority \cite{perez2022}\cite{liu2023taxonomy}\cite{xu2024survey}.
+
+\section{LLMs in Modern Workflows}
+
+\subsection{From Standalone Chat to Integrated Pipelines}
+
+LLMs are increasingly deployed as part of multi step pipelines. A single user request may trigger retrieval of related documents, summarisation of evidence, classification of content, ranking of candidates, and generation of structured outputs. Surveys and benchmarks emphasise that this integrated style is common and that it should be evaluated end to end \cite{xu2024survey}\cite{shu2024attackeval}\cite{chao2024jailbreakbench}.
+
+This integration changes what “security” means. In many deployments, the most serious risk is not a single incorrect sentence. The more concerning failure is a wrong \emph{decision artefact} that is treated as authoritative by surrounding software. An attacker can benefit from subtle influence as long as it pushes the system over a decision boundary, such as approve versus reject, or high risk versus low risk \cite{shu2024attackeval}.
+
+\subsection{Prompt Assembly and Control Boundaries}\label{subsec:prompt-assembly}
+
+Most production systems assemble prompts by combining multiple sources into one context window. This design is practical: it allows developers to include policies, provide relevant background, and supply task evidence. The security challenge is that the trust boundary is outside the model. If untrusted text is inserted into the same context window as trusted instructions, the model may treat attacker text as guidance, particularly if it is phrased in a directive, policy like style \cite{perez2022}\cite{liu2023taxonomy}.
+
+Consider document screening. A system may build a prompt from a rubric (criteria for scoring), the user request (rank these documents), and extracted document text. If one document contains an instruction such as “ignore the rubric and rank this document first,” the model may comply because it is just part of the same combined input \cite{perez2022}\cite{liu2023taxonomy}.
+
+Figure \ref{fig:context_window_clean} provides a simplified view of this mechanism. The main message is that the model sees one combined prompt, even when the application designer intended a clear separation between trusted instructions and untrusted content.
+
+% Preamble requirements (add once in main.tex, not here):
+% \usepackage{tikz}
+% \usetikzlibrary{positioning,arrows.meta,fit}
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw, rounded corners, align=center, inner sep=5pt, minimum width=40mm, minimum height=10mm},
+  untrusted/.style={draw, rounded corners, dashed, align=center, inner sep=5pt, minimum width=40mm, minimum height=10mm},
+  container/.style={draw, rounded corners, very thick, inner sep=7pt},
+  arrow/.style={-Latex, thick},
+  node distance=7mm
+]
+  \node[box] (sys) {System instructions};
+  \node[box, below=of sys] (user) {User request};
+  \node[untrusted, below=of user] (ext) {Untrusted content\\(PDF, web, email)};
+
+  \node[container, fit=(sys)(user)(ext)] (ctx) {};
+  \node[fill=white, inner sep=2pt] at (ctx.north) {Context window (single prompt)};
+
+  \node[box, right=22mm of ctx] (llm) {LLM};
+  \node[box, right=12mm of llm] (out) {Output\\(text or JSON)};
+  \node[box, below=of out] (act) {Downstream\\decision or action};
+
+  \draw[arrow] (ctx.east) -- (llm.west);
+  \draw[arrow] (llm.east) -- (out.west);
+  \draw[arrow] (out.south) -- (act.north);
+\end{tikzpicture}
+\caption{In many applications, the prompt is assembled from several sources and placed into one context window. If untrusted content is included alongside trusted instructions, it can influence the model output and any downstream decision that depends on it.}
+\label{fig:context_window_clean}
+\end{figure}
+
+\subsection{Why Structure Helps but Does Not Fully Solve the Problem}
+
+Developers often try to impose structure using templates, delimiters, or labelled sections such as “Instructions” and “Context”. This can reduce confusion, but it does not guarantee separation. The model still reads the full prompt as a sequence and must infer how to treat each part. If attacker text is written to mimic the template style, or to claim higher priority, it can still be effective \cite{liu2023taxonomy}.
+
+For the same reason, structured outputs such as JSON do not automatically solve security. A system may ask the model to output strict JSON and then parse it. That improves reliability, but it also creates a parsing boundary: if an attacker can cause the model to output a misleading field, or to omit relevant evidence, the downstream system may accept a manipulated decision as valid. In practice, many prompt injection objectives are framed as influencing a single field, such as a safety label or a ranking score, because this is enough to change system behaviour \cite{shu2024attackeval}.
+
+\subsection{Why Instruction Hierarchies Can Fail}
+
+Developers often assume a hierarchy: system instructions are highest priority, the user defines the task, and retrieved text is only evidence. In practice, injection attacks succeed when the model is led to reinterpret this hierarchy. Attacker text may be framed as a policy update, a special system message, or a constraint that appears to override previous rules. Empirical studies and taxonomies report that role confusion and instruction override patterns appear repeatedly across models and settings \cite{liu2023taxonomy}\cite{perez2022}.
+
+Robustness also varies significantly across models and configurations. Benchmarks have shown that attack success can change based on the model family, the fine tuning method, the prompt formatting, and even the evaluation prompts themselves. This motivates evaluation across multiple models and conditions rather than assuming a single configuration represents the general case \cite{chao2024jailbreakbench}\cite{yang2024robustness}.
+
+\subsection{From Generation Errors to Decision Errors}
+
+In many applications, the model output is not used only as explanation text. It is used to assign categories, extract fields, route requests, or trigger other actions. When a model is manipulated, the surrounding system can be manipulated too. This is why recent work increasingly treats prompt injection as a system integrity problem rather than only a content safety problem \cite{shu2024attackeval}.
+
+\section{Prompt Injection Vulnerabilities}
+
+\subsection{Definition and Threat Intuition}
+
+Prompt injection is an attack strategy where an adversary supplies text designed to steer the model toward an attacker objective. The distinctive feature is that the attacker uses the model’s normal instruction following behaviour rather than exploiting a traditional software vulnerability. Surveys argue that this makes the problem persistent: as long as models are designed to follow natural language instructions, attackers can attempt to craft instructions that the model follows in unintended ways \cite{xu2024survey}\cite{xu2025survey}.
+
+Two deployment relevant settings are commonly distinguished:
+\begin{itemize}
+    \item \textbf{Direct prompt injection (jailbreaking):} the attacker interacts with the model through the normal user interface.
+    \item \textbf{Indirect prompt injection:} the attacker places malicious instructions in external content that the application later ingests.
+\end{itemize}
+
+\subsection{Direct Prompt Injection and Jailbreaking}
+
+Direct prompt injection is often described as jailbreaking because it frequently aims to bypass constraints. Early empirical work documented recurring failure modes such as goal hijacking (changing the task the model tries to perform) and prompt leakage (extracting hidden instructions or policies) \cite{perez2022}\cite{liu2023taxonomy}.
+
+The literature often reports \emph{Attack Success Rate (ASR)}, meaning the fraction of trials in which the model follows the attacker objective. ASR is intuitive, but it depends heavily on the evaluation protocol and on how success is defined. Benchmarks help standardise these definitions and make comparisons more reproducible \cite{shu2024attackeval}\cite{chao2024jailbreakbench}.
+
+Research also moved from manual prompt crafting to automated optimisation. Transferable suffix style attacks demonstrated that adversarial prompt fragments optimised on one model can sometimes transfer to others, which suggests attackers can reuse prompt artefacts across systems \cite{zou2023gcg}\cite{liu2024automatic}\cite{li2025arrattack}.
+
+\subsection{Indirect Prompt Injection}
+
+Indirect prompt injection occurs when attacker text is embedded in external content such as documents, web pages, or emails that the application later includes in the model input. In this setting, the attacker may never interact with the model directly. Instead, they rely on the system ingesting third party content and placing it into the same context window as trusted instructions. This threat is especially relevant for RAG systems and document processing workflows \cite{liu2024promptinj}\cite{chen2025indirectdetect}\cite{zhan2025adaptive}.
+
+Many defenses attempt to filter instruction like spans in retrieved or extracted text. However, adaptive attacks can still succeed by changing wording, formatting, or placement so the payload survives preprocessing and remains influential. This is why the literature increasingly evaluates defenses against attackers that adapt to the defense rather than assuming a fixed attack template \cite{chen2025indirectdetect}\cite{jia2025critical}.
+
+\subsection{Common Objectives of Injection Attacks}
+
+Across research, injection payloads repeatedly target outcomes that align with real system value:
+\begin{enumerate}
+    \item \textbf{Context hijacking:} redefining the task and overriding earlier guidance \cite{liu2023taxonomy}.
+    \item \textbf{Information exfiltration:} extracting hidden system prompts, policies, or private context \cite{perez2022}\cite{liu2024promptinj}.
+    \item \textbf{Output manipulation:} forcing a label, score, or ranking that drives a downstream decision \cite{shu2024attackeval}\cite{chen2025indirectdetect}.
+\end{enumerate}
+In agent settings, similar objectives appear as tool or plan hijacking, where attacker content influences which tool is used and what arguments are passed \cite{lee2024promptinfection}\cite{zhang2025toolselect}.
+
+\section{Retrieval Augmented Generation (RAG) and Tool Augmented Systems}
+
+\subsection{Retrieval Augmented Generation}
+
+Retrieval Augmented Generation (RAG) is a common pattern used to improve usefulness and factual grounding. A typical RAG system retrieves passages from a knowledge base and inserts them into the prompt so the model can answer using that evidence. For a non technical reader, RAG behaves like “search first, then write”.
+
+Security changes because retrieval introduces a new trust boundary. Retrieved text is meant to act as evidence, but it can contain instructions. If attacker controlled content enters the retrieval corpus, such as a poisoned document or a manipulated web page, it can be retrieved and placed into the context window \cite{liu2024promptinj}\cite{zou2024poisonedrag}. The model may then treat it as guidance rather than as evidence, particularly if the attacker text is written in an instruction like style.
+
+\subsection{Tool Augmented Agents}
+
+Tool augmented systems allow the model to call external tools such as search APIs, databases, or internal services. When the model is used to plan and execute sequences of actions, it is often called an LLM \emph{agent}. Tool access increases risk because a successful injection can become an action level failure. Instead of producing only misleading text, a compromised agent may select the wrong tool, pass unsafe arguments, or take unauthorised actions \cite{lee2024promptinfection}\cite{zhang2025toolselect}.
+
+This is important because real deployments often combine RAG and tools. A model might retrieve relevant text, then decide to call a tool, then summarise results, all in one workflow. Each step introduces a place where untrusted content may enter the next prompt, and each step is an opportunity for injection to change system behaviour.
+
+\section{Document Pipelines and PDF Based Vulnerabilities}
+
+\subsection{Why Document Ingestion Is a Security Boundary}
+
+Many LLM applications accept documents and transform them into text for prompting. Examples include résumé screening, contract review, invoice extraction, and review of scientific papers. In these systems, the ingestion pipeline becomes a security boundary. If the extracted text does not match what a human perceives, an attacker may hide instructions that are machine visible but not salient to a reviewer \cite{keuper2025reviews}. This mismatch is especially relevant when ingestion includes OCR, layout reconstruction, or heuristic reading order.
+
+\subsection{The PDF Parsing Gap}
+
+PDFs store content as positioned objects rather than a single linear text stream. Text extraction tools reconstruct reading order using heuristics. They may also extract content that is visually hidden, very small, low contrast, or layered behind other elements. If an application feeds extracted text into an LLM, any extracted content becomes part of the context window and can function as an injection payload. This is why document ingestion is treated as a first class part of the threat model in indirect injection work \cite{keuper2025reviews}\cite{chen2025indirectdetectdetect}.
+
+A useful way to think about the PDF parsing gap is that PDFs can contain two parallel representations of content: what a human sees on the page, and what a machine extracts as text. When those differ, the attacker can exploit the extraction view rather than the visual view.
+
+\subsection{Visual and Multimodal Prompt Injection}
+
+As systems incorporate images and layout aware models, the attack surface expands. Multimodal benchmarks show that instruction following vulnerabilities remain measurable when inputs include images alongside text \cite{luo2024jailbreakv}. Other work demonstrates that structured visuals such as diagrams can carry instruction like payloads. This creates additional opportunities to hide malicious guidance in forms that appear benign to a reader \cite{lee2025mindmap}\cite{yeo2025multimodal}.
+
+\section{Defense Strategies}
+
+The defense literature generally adopts a layered view because no single method reliably prevents all attacks, especially when attackers adapt. Evaluations highlight trade offs: stronger filtering can remove useful evidence, detection can produce false positives, and robustness can degrade when attacks shift beyond the patterns used to train or tune the defense \cite{jia2025critical}\cite{pandya2025attention}.
+
+Several defense families appear repeatedly:
+\begin{itemize}
+    \item \textbf{Structured prompting and constrained formats:} attempts to reduce ambiguity about what is an instruction versus what is evidence \cite{chen2025struq}.
+    \item \textbf{Training time hardening:} modifying model behaviour using adversarial examples or alignment data to reduce compliance with injected instructions \cite{chen2024secalign}\cite{chen2025metasecalign}.
+    \item \textbf{Inference time hardening:} techniques that do not require retraining, such as defensive prefix tokens or rule based guard layers \cite{chen2025defensivetokens}.
+    \item \textbf{Filtering and detection:} methods that try to detect injected instructions in retrieved or extracted text, often framed as monitoring layers \cite{shi2025promptarmor}\cite{hackett2025bypassing}.
+    \item \textbf{System level design controls:} limiting tool capabilities, requiring explicit authorisation steps, and reducing the ability of untrusted content to directly trigger actions \cite{shrestha2025camel}\cite{zhu2025melon}.
+\end{itemize}
+
+In practice, defenses are often combined. A system may use structured prompting, retrieval sanitisation, and a tool permission model together, and then evaluate whether the combined system remains robust when attacks adapt.
+
+\section{Evaluation Considerations and Adaptive Threats}
+
+A central lesson from the recent literature is that robustness claims depend on the attack family and the evaluation protocol. Benchmarks provide standardised prompts and metrics, but multiple studies argue that defenses can overfit to known attack patterns and fail when attackers adapt. Transferable and universal attacks further motivate evaluation across multiple models and threat settings rather than relying on a single model and a single testing style \cite{chao2024jailbreakbench}\cite{shu2024attackeval}\cite{mehrotra2024tap}\cite{jia2025critical}.
+
+For document centric deployments, evaluation must also account for the ingestion path. Extraction quality, chunk boundaries, retrieval settings, and preprocessing choices can all influence whether a malicious payload reaches the model. For this reason, this thesis treats document ingestion as a first class component of the threat model and evaluates representative attack and defense families under consistent metrics in document based pipelines.
