@@ -1,0 +1,508 @@
+% File: sections/related_work.tex
+% Full literature review INCLUDING the bibliography (single shared bib block)
+
+\chapter{Related Work}\label{chap:literature-review}
+
+Large Language Models (LLMs) have moved quickly from research demonstrations to practical components in real products. They now appear in workflows such as summarising documents, extracting structured fields, drafting messages, assisting decision making, and supporting tool use inside larger software systems \cite{xu2024survey}\cite{xu2025survey}. As this reliance grows, the security question becomes broader than whether a model can produce harmful text. The more important question is whether a model can be misled into producing outputs that leak sensitive information, override intended policies, or trigger unsafe downstream actions when the model is connected to retrieval systems and external tools \cite{liu2024promptinj}\cite{shu2024attackeval}\cite{zhang2025toolselect}.
+
+Prompt injection has therefore become one of the most deployment relevant threats. The core reason is practical. Modern applications rarely send only the user query to the model. Instead, they assemble one combined model input, often called the context window, from multiple sources. These sources typically include developer instructions, a user request, conversation history, retrieved passages, and tool outputs \cite{perez2022}\cite{liu2023taxonomy}. The model processes this entire input as a single text sequence. Separation between trusted instructions and untrusted content is implied by formatting and conventions rather than enforced by a strict boundary \cite{xu2024survey}\cite{liu2024promptinj}. This framing helps explain why many studies treat prompt injection as a system integrity problem rather than only a content safety issue \cite{shu2024attackeval}\cite{xu2025survey}.
+
+This chapter synthesises prior work by organising studies around what tends to matter in deployed systems. We begin with direct prompt attacks, where the attacker interacts with the model through the normal interface and attempts to override or redirect policy \cite{perez2022}\cite{liu2023taxonomy}. We then describe how attacks evolved from manual crafting to scalable, automated optimisation and query efficient strategies \cite{zou2023gcg}\cite{chao2024twenty}\cite{mehrotra2024tap}. Next, we turn to indirect prompt injection, which became central once retrieval augmented generation and document ingestion were deployed widely, and once agents began selecting tools and producing structured actions \cite{zou2024poisonedrag}\cite{chen2025indirectdetect}\cite{zhan2025adaptive}. Finally, we review defence families, with emphasis on the recurring evaluation lesson that measured robustness often weakens once attackers adapt their prompts, their placement, or their strategy \cite{chen2024secalign}\cite{chen2025struq}\cite{jia2025critical}\cite{pandya2025attention}.
+
+% ============================================================
+% TikZ line-icon helpers (outline style, no external fonts)
+% ============================================================
+\newcommand{\rwDiagramScale}{0.90}
+\newcommand{\rwIconSize}{0.34}
+\newcommand{\rwStroke}{0.55pt}
+
+\newcommand{\iconDoc}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0,0) rectangle (1.2,1.5);
+  \draw[line width=\rwStroke] (0.85,1.5) -- (1.2,1.15) -- (0.85,1.15) -- cycle;
+}}
+\newcommand{\iconPen}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.1,0.2) -- (1.2,1.3);
+  \draw[line width=\rwStroke] (0.0,0.3) -- (0.2,0.1);
+  \draw[line width=\rwStroke] (1.05,1.45) -- (1.25,1.25);
+}}
+\newcommand{\iconGear}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.75,0.75) circle (0.45);
+  \draw[line width=\rwStroke] (0.75,0.75) circle (0.18);
+  \foreach \a in {0,45,...,315}{
+    \draw[line width=\rwStroke] (0.75,0.75) ++(\a:0.45) -- ++(\a:0.22);
+  }
+}}
+\newcommand{\iconSearch}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.55,0.95) circle (0.45);
+  \draw[line width=\rwStroke] (0.85,0.65) -- (1.35,0.15);
+}}
+\newcommand{\iconDB}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.1,1.35) ellipse (0.6 and 0.18);
+  \draw[line width=\rwStroke] (0.1,1.35) -- (0.1,0.25);
+  \draw[line width=\rwStroke] (1.3,1.35) -- (1.3,0.25);
+  \draw[line width=\rwStroke] (0.1,0.25) ellipse (0.6 and 0.18);
+  \draw[line width=\rwStroke] (0.1,0.9) .. controls (0.45,0.72) and (0.95,0.72) .. (1.3,0.9);
+}}
+\newcommand{\iconImage}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0,0) rectangle (1.5,1.1);
+  \draw[line width=\rwStroke] (0.2,0.25) -- (0.65,0.65) -- (0.95,0.4) -- (1.35,0.8);
+  \draw[line width=\rwStroke] (0.35,0.85) circle (0.1);
+}}
+\newcommand{\iconUser}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.75,1.25) circle (0.28);
+  \draw[line width=\rwStroke] (0.25,0.15) .. controls (0.35,0.6) and (1.15,0.6) .. (1.25,0.15);
+}}
+\newcommand{\iconChip}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.35,0.35) rectangle (1.15,1.15);
+  \draw[line width=\rwStroke] (0.6,0.6) rectangle (0.9,0.9);
+  \foreach \y in {0.45,0.65,0.85,1.05}{
+    \draw[line width=\rwStroke] (0.2,\y) -- (0.35,\y);
+    \draw[line width=\rwStroke] (1.15,\y) -- (1.3,\y);
+  }
+  \foreach \x in {0.45,0.65,0.85,1.05}{
+    \draw[line width=\rwStroke] (\x,0.2) -- (\x,0.35);
+    \draw[line width=\rwStroke] (\x,1.15) -- (\x,1.3);
+  }
+}}
+\newcommand{\iconChat}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.1,0.35) rectangle (1.35,1.1);
+  \draw[line width=\rwStroke] (0.45,0.35) -- (0.25,0.15) -- (0.65,0.35);
+  \foreach \x in {0.35,0.65,0.95}{
+    \fill (\x,0.75) circle (0.06);
+  }
+}}
+\newcommand{\iconWarning}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.75,1.25) -- (0.1,0.1) -- (1.4,0.1) -- cycle;
+  \draw[line width=\rwStroke] (0.75,0.9) -- (0.75,0.45);
+  \fill (0.75,0.28) circle (0.06);
+}}
+\newcommand{\iconRefresh}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke,->] (1.25,0.95) arc (25:210:0.55);
+  \draw[line width=\rwStroke,->] (0.25,0.55) arc (205:390:0.55);
+}}
+\newcommand{\iconCheck}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.75,0.75) circle (0.65);
+  \draw[line width=\rwStroke] (0.35,0.75) -- (0.62,0.5) -- (1.15,0.95);
+}}
+\newcommand{\iconTools}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.25,1.15) arc (130:230:0.25);
+  \draw[line width=\rwStroke] (0.28,0.95) -- (1.1,0.13);
+  \draw[line width=\rwStroke] (0.95,0.28) -- (1.25,0.0);
+  \draw[line width=\rwStroke] (1.1,0.13) -- (1.35,0.38);
+  \draw[line width=\rwStroke] (1.23,0.5) circle (0.18);
+}}
+\newcommand{\iconClipboard}{%
+\tikz[baseline=-0.6ex,scale=\rwIconSize,line cap=round,line join=round]{
+  \draw[line width=\rwStroke] (0.2,0.1) rectangle (1.3,1.4);
+  \draw[line width=\rwStroke] (0.55,1.4) rectangle (0.95,1.55);
+  \draw[line width=\rwStroke] (0.4,1.1) -- (1.1,1.1);
+  \draw[line width=\rwStroke] (0.4,0.85) -- (1.1,0.85);
+  \draw[line width=\rwStroke] (0.4,0.6) -- (0.85,0.6);
+}}
+
+\section{Core Concepts and Threat Models}
+
+\subsection{Why Mixing Sources in One Prompt Creates Risk}
+
+Prompt injection is often described as simple, but its persistence comes from how real systems are built. An LLM does not directly inspect a database, open a PDF, or browse a website. Instead, an application collects information from multiple places and converts it into text. The model receives the final result as a single token sequence and must infer which parts are rules and which parts are merely content \cite{perez2022}\cite{liu2023taxonomy}\cite{liu2024promptinj}.
+
+This is why many papers frame prompt injection as a boundary problem. In traditional systems, the separation between trusted code and untrusted data is enforced by the runtime. In LLM systems, that separation is often simulated by labels and delimiters and then delegated to the model's interpretation \cite{xu2024survey}. The attacker exploits this by writing untrusted content so it resembles a higher priority instruction, a policy update, or an authoritative system message \cite{perez2022}\cite{liu2023taxonomy}.
+
+\subsection{Direct and Indirect Prompt Injection in Practice}
+
+The literature commonly distinguishes direct and indirect prompt injection because they differ in how the attacker reaches the model. Direct injection, often called jailbreaking, occurs when the attacker interacts with the model through its normal interface and attempts to override constraints or extract hidden instructions \cite{perez2022}\cite{liu2023taxonomy}\cite{deshpande2023toxicity}. Indirect injection occurs when the attacker plants instructions in third party content that the application later retrieves or parses, such as a PDF, a web page, or an email. When that content is inserted into the prompt, the malicious instructions travel with it \cite{liu2024promptinj}\cite{chen2025indirectdetect}\cite{zhan2025adaptive}.
+
+Indirect attack settings align closely with modern deployments. They appear whenever systems ingest documents, perform retrieval augmented generation, or rely on intermediate tool outputs derived from external sources \cite{zou2024poisonedrag}\cite{zhang2025toolselect}. In practice, the most damaging failures are often not extreme or theatrical jailbreak outputs. They are subtle shifts in labels, rankings, or tool choices that the surrounding software treats as authoritative \cite{shu2024attackeval}.
+
+\section{From Manual Jailbreaks to Automated Discovery}
+
+\subsection{Early Observations and Threat Categories}
+
+Early studies show that instruction following can be redirected even when a model appears aligned. Perez and Ribeiro demonstrate attack patterns where malicious prompts explicitly instruct the model to ignore earlier rules or to reveal hidden system instructions \cite{perez2022}. Liu et al.\ provide an empirical taxonomy of jailbreak strategies, which helps separate goal hijacking, policy override, and prompt leakage as recurring themes rather than isolated incidents \cite{liu2023taxonomy}. Deshpande et al.\ study how jailbreaks are associated with toxic outputs and examine how partial defences can shift behaviour without removing the underlying vulnerability \cite{deshpande2023toxicity}.
+
+These papers matter because they clarify what success looks like in practice. Attack success is not only harmful content generation. It can also be the ability to extract hidden instructions, to change the task definition, or to make the model treat attacker text as higher priority than developer intent \cite{perez2022}\cite{liu2023taxonomy}. The emphasis on practical outcomes motivates evaluation in terms of measurable success rather than anecdotal demonstration \cite{shu2024attackeval}.
+
+\subsection{Automation, Optimisation, and Transferability}
+
+As the field matured, jailbreak discovery became more systematic. Zou et al.\ introduce universal and transferable adversarial suffixes, showing that a short optimised fragment can increase harmful compliance across many prompts \cite{zou2023gcg}. Deng et al.\ propose MASTERKEY, which automates jailbreak generation and demonstrates that search over prompt space can reliably uncover bypasses for a given target model \cite{deng2023masterkey}. Maus et al.\ analyse adversarial prompting for black box foundation models and show that optimisation remains feasible even when access is limited to API style interaction \cite{maus2023adversarial}.
+
+Later work expands both scale and reliability. Chao et al.\ show that black box jailbreaking can be achieved in surprisingly few queries, which makes attack preparation more realistic under rate limits \cite{chao2024twenty}. Mehrotra et al.\ propose Tree of Attacks, which formalises multi branch exploration and pruning, again reducing the cost of finding effective prompts \cite{mehrotra2024tap}. Chan et al.\ demonstrate that simple multi turn interactions can elicit harmful jailbreaks, suggesting that conversational dynamics can be exploited even when single turn prompts are heavily filtered \cite{chan2025speakeasy}. Meng et al.\ study dialogue injection attacks, where instructions are embedded and reinforced across conversation context rather than delivered as a single override line \cite{meng2025dialogue}.
+
+Transferability is a particularly important lesson for deployment. Li et al.\ study robust jailbreak prompt generation and emphasise that prompts can generalise across models rather than being unique to one target \cite{li2025arrattack}. Schwartz et al.\ propose Graph of Attacks with Pruning and treat jailbreak generation as a structured optimisation problem where candidates are iteratively generated, scored, and pruned for stealth and effectiveness \cite{schwartz2025gap}. Liu et al.\ introduce automatic and universal prompt injection attacks and reinforce that strong attacks do not necessarily require internal access \cite{liu2024automatic}. Krishna et al.\ broaden the lens by analysing vulnerabilities in advanced reasoning models, highlighting that safety mechanisms can fail in less obvious settings once complex reasoning is involved \cite{krishna2025weakest}.
+
+% ------------------ Diagram 1: attack evolution ------------------
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[
+  scale=\rwDiagramScale, transform shape,
+  font=\small,
+  box/.style={draw, rounded corners, align=center, inner sep=6pt, minimum width=0.70\textwidth, line width=0.65pt},
+  arrow/.style={-Latex, thick},
+  node distance=6mm
+]
+\node[box] (manual) {{\iconDoc\ }{\iconPen}\\[-1pt]\textbf{Manual jailbreaks}\\\emph{hand crafted prompts and case studies}};
+\node[box, below=of manual] (opt) {{\iconGear}\\[-1pt]\textbf{Automated optimisation}\\\emph{suffix search and universal triggers}};
+\node[box, below=of opt] (bb) {{\iconSearch}\\[-1pt]\textbf{Query efficient black box search}\\\emph{few queries and adaptive exploration}};
+\node[box, below=of bb] (deploy) {{\iconDB}\\[-1pt]\textbf{Deployment driven attack surfaces}\\\emph{retrieval, documents, and agents}};
+\node[box, below=of deploy] (mm) {{\iconImage}\\[-1pt]\textbf{Multimodal payloads}\\\emph{visual layouts and image conditioned attacks}};
+\draw[arrow] (manual) -- (opt);
+\draw[arrow] (opt) -- (bb);
+\draw[arrow] (bb) -- (deploy);
+\draw[arrow] (deploy) -- (mm);
+\end{tikzpicture}
+\caption{Prompt attacks evolved from manual jailbreak prompting into automated optimisation, query efficient search, and deployment driven surfaces such as retrieval, documents, and multimodal inputs \cite{perez2022}\cite{zou2023gcg}\cite{deng2023masterkey}\cite{chao2024twenty}\cite{luo2024jailbreakv}.}
+\label{fig:rw_attack_evolution}
+\end{figure}
+
+\section{Benchmarks, Surveys, and Red Teaming}
+
+\subsection{Benchmarks as Shared Measurement}
+
+As attack families grew, benchmarks became important for comparability. Shu et al.\ introduce AttackEval to benchmark adversarial attacks across models under a consistent protocol and careful definitions of success \cite{shu2024attackeval}. Chao et al.\ introduce JailbreakBench, which similarly focuses on robust measurement across models and defences \cite{chao2024jailbreakbench}. Luo et al.\ extend benchmarking to multimodal models through JailBreakV, showing that image plus text inputs retain jailbreak vulnerabilities and introduce new failure modes tied to perception and layout \cite{luo2024jailbreakv}. Yang et al.\ study adversarial robustness empirically and emphasise that robustness differs across model families, training methods, and prompting formats, reinforcing the need for multi model evaluation \cite{yang2024robustness}.
+
+Benchmarks simplify comparison, but they also illustrate a persistent challenge. Different datasets measure different notions of harm, and different evaluation harnesses can change measured attack success. This observation motivates designs that treat benchmarks as starting points while still testing under variation, paraphrase, and adversarial adaptation \cite{shu2024attackeval}\cite{jia2025critical}.
+
+\subsection{Surveys and Systematised Threat Views}
+
+Surveys help clarify the broader landscape. Xu et al.\ survey jailbreak attacks and present a structured view of prompt attack taxonomies and evaluation patterns \cite{xu2024survey}. Xu and Parhi extend this to a wider survey of attacks on LLMs, positioning jailbreak prompting among several security risks that include indirect attacks and model level vulnerabilities \cite{xu2025survey}. Liu et al.\ survey prompt injection attacks and defences and highlight why the problem persists in systems that merge trusted and untrusted text in a single context window \cite{liu2024promptinj}.
+
+A complementary view comes from red teaming work. Pathade provides a systematic evaluation of prompt injection and jailbreak vulnerabilities and treats testing methodology itself as part of the security story, including how results are reported and how systems evolve through iterative hardening \cite{pathade2025redteam}.
+
+\section{Indirect Injection in Retrieval, Documents, and Tools}
+
+\subsection{Retrieval Augmented Generation and Knowledge Corruption}
+
+Retrieval augmented generation improves helpfulness by supplying external evidence, but it introduces a trust boundary. Retrieved passages are intended to act as evidence, but they become part of the prompt and can include instructions. An attacker that can influence the corpus can influence what the model reads \cite{liu2024promptinj}. Zou et al.\ demonstrate this risk in PoisonedRAG, where crafted documents corrupt retrieval augmented systems by ensuring that malicious content is retrieved for target queries \cite{zou2024poisonedrag}. This amplifies the impact of prompt injection because the system itself selects and forwards adversarial text to the model.
+
+\subsection{Tool Selection and Agentic Workflows}
+
+When LLMs can call tools, prompt injection can become an action level vulnerability. Zhang et al.\ study prompt injection attacks that target tool selection in LLM agents, showing that malicious content can bias which tool is chosen and how tool calls are constructed \cite{zhang2025toolselect}. Lee and Tiwari discuss prompt infection in multi agent systems, highlighting how one agent output can become another agent input and allow injected instructions to propagate across an agent network \cite{lee2024promptinfection}. These results connect prompt injection to broader questions about where enforcement should happen in an agent pipeline, and whether tool boundaries must carry explicit safeguards \cite{shrestha2025camel}\cite{zhu2025melon}.
+
+% ------------------ Diagram 2: indirect injection via RAG + tools ------------------
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[
+  scale=\rwDiagramScale, transform shape,
+  font=\small,
+  box/.style={draw, rounded corners, align=center, inner sep=6pt, minimum width=26mm, minimum height=10mm, line width=0.65pt},
+  arrow/.style={-Latex, thick},
+  dashedarrow/.style={-Latex, thick, dashed},
+  node distance=9mm and 10mm
+]
+\node[box] (user) {{\iconUser}\\[-1pt]\textbf{User}\\request};
+\node[box, right=of user] (retr) {{\iconSearch}\\[-1pt]\textbf{Retriever}\\(RAG)};
+\node[box, right=of retr] (prompt) {{\iconDoc}\\[-1pt]\textbf{Final}\\prompt};
+\node[box, right=of prompt] (llm) {{\iconChip}\\[-1pt]\textbf{LLM}\\agent};
+\node[box, right=of llm] (out) {{\iconChat}\\[-1pt]\textbf{Output}};
+
+\node[box, below=of retr] (kb) {{\iconDB}\\[-1pt]\textbf{Knowledge base}\\documents};
+\node[box, below=of llm] (tool) {{\iconTools}\\[-1pt]\textbf{Tools}\\(APIs or DB)};
+
+\node[box, below=of user] (att) {{\iconWarning}\\[-1pt]\textbf{Attacker}\\content};
+
+\node[box, below=of out] (act) {{\iconGear}\\[-1pt]\textbf{Downstream}\\action};
+
+\draw[arrow] (user) -- (retr);
+\draw[arrow] (retr) -- (prompt);
+\draw[arrow] (prompt) -- (llm);
+\draw[arrow] (llm) -- (out);
+\draw[arrow] (out) -- (act);
+
+\draw[arrow] (kb) -- (retr);
+\draw[dashedarrow] (att) -- (kb);
+
+\draw[arrow] (llm) -- (tool);
+\draw[arrow] (tool.west) .. controls +(-16mm,0) and +(0,-8mm) .. (prompt.south);
+\end{tikzpicture}
+\caption{A common retrieval plus tools pipeline. Attacker controlled content can enter the corpus, be retrieved into the prompt, and influence both responses and tool usage \cite{zou2024poisonedrag}\cite{zhang2025toolselect}\cite{lee2024promptinfection}\cite{zhu2025melon}.}
+\label{fig:rw_indirect_rag_tools}
+\end{figure}
+
+\subsection{Document Pipelines and the PDF Parsing Gap}
+
+Document first deployments create a distinct risk because text extraction can diverge from human perception. Keuper analyses prompt injection in LLM generated reviews of scientific publications, illustrating how adversarial text can be embedded in manuscripts and influence the model's evaluation and tone \cite{keuper2025reviews}. Chen et al.\ study whether indirect prompt injection can be detected and removed, and they treat document ingestion, chunking, and sanitisation decisions as influential parts of the threat model \cite{chen2025indirectdetect}. Zhan et al.\ show that adaptive attackers can break defences by altering surface form and placement, which suggests that pipeline specific heuristics can be fragile without continued adversarial testing \cite{zhan2025adaptive}. These studies motivate treating document ingestion as part of the security boundary rather than a pre processing detail.
+
+\subsection{Multimodal and Visual Prompt Injection}
+
+Multimodal systems expand what counts as an input channel. Luo et al.\ show how jailbreak success remains measurable for multimodal LLMs, suggesting that safety issues persist once the model can interpret images and not only text \cite{luo2024jailbreakv}. Lee, Kim, and Pak study mind mapping prompt injection and demonstrate that diagrams can carry hidden instructions that influence model interpretation \cite{lee2025mindmap}. Yeo and Choi survey multimodal prompt injection risks and defences and analyse how cross modal instruction following can create new hiding spaces for attackers \cite{yeo2025multimodal}. In document heavy pipelines, these findings imply that layout, images, and visual structure can be exploited as carriers of malicious guidance.
+
+\section{Defence Families in Deployed Systems}
+
+The defence literature generally converges on a layered view. In practice, it is rare for one technique to solve prompt injection on its own. Systems often combine prompt structuring, training time hardening, inference time monitoring, and tool level safeguards. The open question is how these layers behave under adaptive attack and whether they remain useful without harming normal utility \cite{jia2025critical}\cite{pandya2025attention}.
+
+\subsection{Structured Prompt Assembly and Boundary Reinforcement}
+
+Structured prompt assembly attempts to reduce ambiguity by making roles explicit and by constraining how evidence is presented. StruQ defends against prompt injection using structured queries, limiting how untrusted content is inserted and interpreted \cite{chen2025struq}. Wu et al.\ propose Instructional Segment Embedding as a way to improve instruction hierarchy understanding, which can help the model treat instruction segments differently from surrounding content \cite{wu2025ise}. Encrypted prompt techniques propose hiding sensitive instructions so that untrusted content has less opportunity to override them directly \cite{chan2025encryptedprompt}. These approaches aim to make the model's job easier by reducing the need to infer authority from style alone.
+
+\subsection{Training Time Hardening and Robust Alignment}
+
+Training time hardening aims to reduce compliance with injected instructions by modifying the underlying model behaviour. SecAlign aligns models to be robust against prompt injection through targeted training scenarios \cite{chen2024secalign}. Meta SecAlign extends this direction by aiming for a secure foundation model that generalises beyond narrow training distributions \cite{chen2025metasecalign}. Defending by leveraging attack techniques treats attack generation itself as a source of training diversity, attempting to expose models to a broader class of bypass patterns \cite{chen2025attacktechniques}. These methods often report improved robustness, but their generality depends on the breadth of attacks considered and on whether attackers can adapt in ways not seen during training \cite{jia2025critical}.
+
+\subsection{Inference Time Defences, Detection, and Monitoring}
+
+Inference time defences are attractive because they can be deployed without retraining. DefensiveTokens propose adding a small set of learned tokens that shift model behaviour toward resistance when adversarial patterns appear \cite{chen2025defensivetokens}. PromptArmor provides a simple prompt based wrapper that attempts to reinterpret adversarial instructions as data rather than commands \cite{shi2025promptarmor}. Hung et al.\ propose Attention Tracker as a detector based on attention patterns that attempts to identify when untrusted segments are driving output \cite{hung2025attentiontracker}. Liu et al.\ propose DataSentinel as a game theoretic detection approach that models attacker defender interaction \cite{liu2025datasentinel}. Lin et al.\ propose UniGuardian as a unified defence that targets prompt injection alongside other attack types \cite{lin2025uniguardian}.
+
+However, the literature also provides cautionary results. Choudhary et al.\ discuss how not to detect prompt injections and highlight methodological pitfalls that can make LLM based detection unreliable \cite{choudhary2025hownot}. Hackett et al.\ show bypass strategies against guardrails and detectors, illustrating that attackers can tailor prompts to detector assumptions \cite{hackett2025bypassing}. Pandya et al.\ show that fine tuning based defences can be broken through attention focused attacks, reinforcing the point that evaluation must include adaptive attackers rather than static prompt suites \cite{pandya2025attention}.
+
+\subsection{Agent and Tool Safeguards by Design}
+
+Architectural defences attempt to reduce the consequences of prompt injection by limiting what the model can do. CaMeL argues for defeating prompt injections by design, introducing system structures that ensure untrusted content cannot directly authorise sensitive actions \cite{shrestha2025camel}. MELON provides a provable defence perspective for indirect injection in agents, aiming for guarantees about when tool use remains safe even when prompts contain adversarial content \cite{zhu2025melon}. Hahm et al.\ propose causal influence prompting as another way to reduce how much adversarial content influences action selection \cite{hahm2025causal}. These approaches align with the system level view of prompt injection, where the goal is not perfect understanding by the model but prevention of high impact failures \cite{zhang2025toolselect}.
+
+% ------------------ Diagram 3: layered defences (stack) ------------------
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[
+  scale=\rwDiagramScale, transform shape,
+  font=\small,
+  layer/.style={draw, rounded corners, align=center, inner sep=6pt, minimum width=0.74\textwidth, line width=0.65pt},
+  arrow/.style={-Latex, thick},
+  node distance=5mm
+]
+\node[layer] (in) {{\iconDoc}\\[-1pt]\textbf{Untrusted inputs}\\web pages, PDFs, emails, retrieved text};
+\node[layer, below=of in] (sanitize) {{\iconClipboard}\\[-1pt]\textbf{Sanitisation and segmentation}\\separate instruction like spans};
+\node[layer, below=of sanitize] (stru) {{\iconDoc}\\[-1pt]\textbf{Structured prompt assembly}\\explicit roles and schemas};
+\node[layer, below=of stru] (model) {{\iconChip}\\[-1pt]\textbf{Model robustness layer}\\alignment and adversarial training};
+\node[layer, below=of model] (detect) {{\iconSearch}\\[-1pt]\textbf{Runtime monitoring}\\detectors, audits, anomaly signals};
+\node[layer, below=of detect] (gate) {{\iconTools}\\[-1pt]\textbf{Tool gating}\\restrict sensitive actions and data access};
+\node[layer, below=of gate] (out) {{\iconChat}\\[-1pt]\textbf{Outputs and actions}\\responses, tool results, downstream decisions};
+
+\draw[arrow] (in) -- (sanitize);
+\draw[arrow] (sanitize) -- (stru);
+\draw[arrow] (stru) -- (model);
+\draw[arrow] (model) -- (detect);
+\draw[arrow] (detect) -- (gate);
+\draw[arrow] (gate) -- (out);
+\end{tikzpicture}
+\caption{Layered defences used in practice. Each layer can reduce risk, but robustness usually depends on combining layers and re testing under adaptation \cite{chen2025struq}\cite{chen2024secalign}\cite{shi2025promptarmor}\cite{shrestha2025camel}\cite{jia2025critical}.}
+\label{fig:rw_defense_stack}
+\end{figure}
+
+\section{Adaptation and the Continuing Evaluation Problem}
+
+A repeating lesson across this literature is that strong results under one evaluation setting do not guarantee broad robustness. Zhan et al.\ show that indirect prompt injection defences can fail once attackers adapt their placement and phrasing \cite{zhan2025adaptive}. Chen et al.\ similarly emphasise that detect and remove approaches depend on pipeline assumptions that attackers can work around \cite{chen2025indirectdetect}. Jia et al.\ argue that defence claims must be stress tested under stronger threat models, because some defences appear effective mainly because they match the benchmark distribution \cite{jia2025critical}. Yang et al.\ reinforce that robustness is model dependent and prompt dependent, which again motivates evaluation across models and conditions \cite{yang2024robustness}.
+
+This adaptive perspective also appears in work that targets specific defence components. Hackett et al.\ demonstrate bypass strategies against guardrails and detectors \cite{hackett2025bypassing}. Pandya et al.\ break fine tuning based prompt injection defences through attention focused methods \cite{pandya2025attention}. Choudhary et al.\ show that naive LLM based detection can be misleading, which suggests that monitoring must be treated as a continuous process rather than a one time certification \cite{choudhary2025hownot}. These studies collectively argue that prompt injection robustness should be assessed as an ongoing security problem rather than a fixed property of a model release \cite{pathade2025redteam}.
+
+\section{Positioning of This Thesis}
+
+Prior work motivates three directions that shape this thesis.
+
+First, comparability remains difficult because different papers adopt different threat models, success definitions, and evaluation protocols. Benchmarks help, but adaptive and transfer settings can still change conclusions. This motivates an evaluation workflow that runs several attack families under consistent measurements across multiple open source models \cite{shu2024attackeval}\cite{chao2024jailbreakbench}\cite{xu2024survey}.
+
+Second, indirect injection in document pipelines remains particularly important in real workflows. PDF parsing and document extraction create conditions where the model sees a different representation than the human reader, and attackers can exploit mismatches between visual content and extracted text \cite{keuper2025reviews}\cite{chen2025indirectdetect}\cite{zhan2025adaptive}. A document centric evaluation complements retrieval oriented work by isolating ingestion and parsing as major contributors to risk \cite{zou2024poisonedrag}.
+
+Third, defences are often evaluated individually, even though deployed systems rely on combinations of layers. A toolkit style evaluation makes it easier to test defence stacks consistently and to identify which layers fail under adaptation. This is a practical necessity for systems that must remain useful while still reducing risk \cite{chen2024secalign}\cite{chen2025struq}\cite{lin2025uniguardian}\cite{shrestha2025camel}.
+
+In response, this thesis introduces an empirical evaluation workflow implemented in InjectSuite, focusing on open source models and measuring robustness under both direct and indirect injection, with emphasis on document ingestion scenarios and realistic prompting pipelines.
+
+% ============================================================
+% Single shared bibliography for Background + Related Work
+% ============================================================
+\begin{thebibliography}{99}
+
+\bibitem{perez2022}
+Perez, R. and Ribeiro, M. (2022).
+\newblock Ignore Previous Prompt: Attack Techniques for LLMs.
+
+\bibitem{zou2023gcg}
+Zou, et al. (2023).
+\newblock Universal and Transferable Adversarial Attacks on Aligned LLMs.
+
+\bibitem{deng2023masterkey}
+Deng, et al. (2023).
+\newblock MASTERKEY: Automated Jailbreaking of LLM Chatbots.
+
+\bibitem{deshpande2023toxicity}
+Deshpande, et al. (2023).
+\newblock Toxicity in ChatGPT: Analyzing Jailbreaks and Defenses.
+
+\bibitem{liu2023taxonomy}
+Liu, et al. (2023).
+\newblock Jailbreaking ChatGPT via Prompt Engineering: An Empirical Study.
+
+\bibitem{maus2023adversarial}
+Maus, et al. (2023).
+\newblock Adversarial Prompting for Black Box Foundation Models.
+
+\bibitem{chao2024twenty}
+Chao, et al. (2024).
+\newblock Jailbreaking Black Box LLMs in Twenty Queries.
+
+\bibitem{mehrotra2024tap}
+Mehrotra, et al. (2024).
+\newblock Tree of Attacks: Jailbreaking Black-Box LLMs Automatically.
+
+\bibitem{chan2025speakeasy}
+Chan, et al. (2025).
+\newblock Speak Easy: Eliciting Harmful Jailbreaks from LLMs with Simple Interactions.
+
+\bibitem{li2025arrattack}
+Li, et al. (2025).
+\newblock One Model Transfer to All: On Robust Jailbreak Prompts Generation against LLMs.
+
+\bibitem{schwartz2025gap}
+Schwartz, et al. (2025).
+\newblock Graph of Attacks with Pruning (GAP): Optimizing Stealthy Jailbreak Prompt Generation.
+
+\bibitem{meng2025dialogue}
+Meng, et al. (2025).
+\newblock Dialogue Injection Attack: Jailbreaking LLMs through Context Manipulation.
+
+\bibitem{shu2024attackeval}
+Shu, et al. (2024).
+\newblock AttackEval: Benchmarking Adversarial Attacks on LLMs.
+
+\bibitem{chao2024jailbreakbench}
+Chao, et al. (2024).
+\newblock JailbreakBench: An Open Robustness Benchmark for Jailbreaking Large Language Models.
+
+\bibitem{luo2024jailbreakv}
+Luo, et al. (2024).
+\newblock JailBreakV: A Benchmark for Assessing the Robustness of Multimodal LLMs against Jailbreak Attacks.
+
+\bibitem{yang2024robustness}
+Yang, et al. (2024).
+\newblock Assessing Adversarial Robustness of Large Language Models: An Empirical Study.
+
+\bibitem{xu2024survey}
+Xu, et al. (2024).
+\newblock A Comprehensive Survey of Jailbreak Attacks on Large Language Models.
+
+\bibitem{xu2025survey}
+Xu and Parhi (2025).
+\newblock A Survey of Attacks on Large Language Models.
+
+\bibitem{liu2024promptinj}
+Liu, et al. (2024).
+\newblock Prompt Injection Attacks and Defenses in LLMs.
+
+\bibitem{zou2024poisonedrag}
+Zou, et al. (2024).
+\newblock PoisonedRAG: Knowledge Corruption Attacks to Retrieval-Augmented Generation of LLMs.
+
+\bibitem{zhang2025toolselect}
+Zhang, et al. (2025).
+\newblock Prompt Injection Attack to Tool Selection in LLM Agents.
+
+\bibitem{chen2025indirectdetect}
+Chen, et al. (2025).
+\newblock Can Indirect Prompt Injection Attacks Be Detected and Removed?
+
+\bibitem{zhan2025adaptive}
+Zhan, et al. (2025).
+\newblock Adaptive Attacks Break Defenses Against Indirect Prompt Injection Attacks on LLM Agents.
+
+\bibitem{lee2025mindmap}
+Lee, Kim, and Pak (2025).
+\newblock Mind Mapping Prompt Injection: Visual Prompt Injection Attacks in Modern Large Language Models.
+
+\bibitem{yeo2025multimodal}
+Yeo and Choi (2025).
+\newblock Multimodal Prompt Injection Attacks: Risks and Defenses for Modern LLMs.
+
+\bibitem{keuper2025reviews}
+Keuper (2025).
+\newblock Prompt Injection Attacks on LLM-Generated Reviews of Scientific Publications.
+
+\bibitem{chen2024secalign}
+Chen, et al. (2024).
+\newblock Aligning LLMs to Be Robust Against Prompt Injection (SecAlign).
+
+\bibitem{chen2025struq}
+Chen, Piet, Sitawarin, Wagner (2025).
+\newblock StruQ: Defending Against Prompt Injection with Structured Queries.
+
+\bibitem{wu2025ise}
+Wu, et al. (2025).
+\newblock Instructional Segment Embedding: Improving LLM Safety with Instruction Hierarchy.
+
+\bibitem{chen2025metasecalign}
+Chen, et al. (2025).
+\newblock Meta SecAlign: A Secure Foundation LLM Against Prompt Injection Attacks.
+
+\bibitem{chen2025defensivetokens}
+Chen, et al. (2025).
+\newblock Defending Against Prompt Injection With a Few DefensiveTokens.
+
+\bibitem{chen2025attacktechniques}
+Chen, et al. (2025).
+\newblock Defense Against Prompt Injection Attack by Leveraging Attack Techniques.
+
+\bibitem{shi2025promptarmor}
+Shi, et al. (2025).
+\newblock PromptArmor: Simple yet Effective Prompt Injection Defenses.
+
+\bibitem{chan2025encryptedprompt}
+Chan (2025).
+\newblock Encrypted Prompt: Securing LLM Applications Against Unauthorized Actions.
+
+\bibitem{shrestha2025camel}
+Shrestha, et al. (2025).
+\newblock Defeating Prompt Injections by Design (CaMeL).
+
+\bibitem{jia2025critical}
+Jia, et al. (2025).
+\newblock A Critical Evaluation of Defenses against Prompt Injection Attacks.
+
+\bibitem{hung2025attentiontracker}
+Hung, et al. (2025).
+\newblock Attention Tracker: Detecting Prompt Injection Attacks in LLMs.
+
+\bibitem{liu2025datasentinel}
+Liu, et al. (2025).
+\newblock DataSentinel: A Game-Theoretic Detection of Prompt Injection Attacks.
+
+\bibitem{choudhary2025hownot}
+Choudhary, et al. (2025).
+\newblock How Not to Detect Prompt Injections with an LLM.
+
+\bibitem{pathade2025redteam}
+Pathade (2025).
+\newblock Red Teaming the Mind of the Machine: A Systematic Evaluation of Prompt Injection and Jailbreak Vulnerabilities in LLMs.
+
+\bibitem{lin2025uniguardian}
+Lin, et al. (2025).
+\newblock UniGuardian: A Unified Defense for Detecting Prompt Injection, Backdoor, and Adversarial Attacks in LLMs.
+
+\bibitem{hackett2025bypassing}
+Hackett, et al. (2025).
+\newblock Bypassing Prompt Injection and Jailbreak Detection in LLM Guardrails.
+
+\bibitem{lee2024promptinfection}
+Lee and Tiwari (2024).
+\newblock Prompt Infection: LLM-to-LLM Prompt Injection within Multi-Agent Systems.
+
+\bibitem{zhu2025melon}
+Zhu, et al. (2025).
+\newblock MELON: Provable Defense Against Indirect Prompt Injection Attacks in AI Agents.
+
+\bibitem{hahm2025causal}
+Hahm, et al. (2025).
+\newblock Enhancing LLM Agent Safety via Causal Influence Prompting.
+
+\bibitem{liu2024automatic}
+Liu, et al. (2024).
+\newblock Automatic and Universal Prompt Injection Attacks against Large Language Models.
+
+\bibitem{krishna2025weakest}
+Krishna, et al. (2025).
+\newblock Weakest Link in the Chain: Security Vulnerabilities in Advanced Reasoning Models.
+
+\bibitem{pandya2025attention}
+Pandya, et al. (2025).
+\newblock May I Have Your Attention? Breaking Fine-Tuning Based Prompt Injection Defenses.
+
+\end{thebibliography}
